@@ -16,6 +16,7 @@ import { publicPaymentIntentsRoutes } from "./routes/publicPaymentIntents.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 import { staffPaymentConfigRoutes } from "./routes/staffPaymentConfig.js";
 import { staffRealtimeRoutes } from "./routes/staffRealtime.js";
+import { staffAnalyticsRoutes } from "./routes/staffAnalytics.js";
 
 export function buildApp(): FastifyInstance {
   const app = Fastify({
@@ -43,6 +44,7 @@ export function buildApp(): FastifyInstance {
   app.register(webhookRoutes);
   app.register(staffPaymentConfigRoutes);
   app.register(staffRealtimeRoutes);
+  app.register(staffAnalyticsRoutes);
 
   return app;
 }
