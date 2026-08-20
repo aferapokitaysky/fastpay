@@ -1,11 +1,12 @@
 # Handoff — текущая рабочая база
 
-## 2026-08-20 — Claude
+## 2026-08-20 — Claude (B0 done)
 
-- Added: ADR-001 переведён в ACCEPTED (`collaboration/DECISIONS.md`), `COM-001` в `collaboration/INBOX.md`. Удалён неиспользуемый Cloudflare/vinext template-шаблон из корня (никогда не коммитился, не относился ни к одному ADR). Начат `apps/api` foundation (B0) и `packages/contracts` в изолированном git worktree — ветка `feat/api-platform-foundation`.
-- Verify: `docker compose up postgres redis api`, затем `curl localhost:<port>/health` и `/ready`; `npm run db:migrate && npm run db:seed` в `apps/api` поднимает demo-ресторан. `npm test` в `apps/api` — unit/integration на новых test DB.
-- API impact: первая версия `packages/contracts` (Zod-схема public bill response) — источник истины для `GET /v1/public/tables/:token/bill`. Breaking changes сюда — только с новым ADR.
-- Next: после мержа — Codex стартует `apps/web` (A0/A1) на реальном контракте из `packages/contracts`. Claude продолжает B1 (домен заведений/столов/заказов).
+- Added: `apps/api` (Fastify + TS) и `packages/contracts` (`@fastpay/contracts`) реализованы и запушены в `feat/api-platform-foundation` (6 коммитов, HEAD `c93072e`). Drizzle-схема (7 таблиц, только MVP-объём: organizations/venues/floors/tables/menu_items/orders/order_items), миграции в `apps/api/drizzle`, идемпотентный `db:seed` (demo-ресторан "Goodman Demo", печатает QR-токен в stdout), request-id + error-envelope middleware, `GET /health`, `GET /ready` (проверяет Postgres+Redis), `GET /v1/public/tables/:token/bill` (реальные данные из seed, соответствует примеру из `docs/api/FRONTEND_BACKEND_CONTRACT.md` поле в поле), multi-stage `Dockerfile`, 12 vitest-тестов.
+- Verify (реально прогнано, не только написано): `npm install` → `npm run db:generate -w apps/api` → `npm run db:migrate -w apps/api` → `npm run db:seed -w apps/api` → `npm run dev -w apps/api`; `curl /health` → `200`, `curl /ready` → `200 {postgres:"ok",redis:"ok"}`, неизвестный токен → `404 TABLE_NOT_FOUND`, seed-токен → `200` с корректным телом. `npm run lint/build/test -w apps/api` — чисто, 12/12. `docker build -f apps/api/Dockerfile .` из корня — собирается и работает.
+- API impact: `packages/contracts` — источник истины для контракта, потребляется через npm workspace (`@fastpay/contracts`). См. COM-002 ниже — одно поле контракта потребует подтверждения Codex перед тем, как `apps/web` начнёт на него полагаться.
+- Deferred (сознательно, не забыто): owner/staff-аутентификация, полный B1 CRUD (создание/редактирование заказов и позиций официантом), payment/tip/loyalty-таблицы, платёжный адаптер (B2). Следующий шаг Claude — B1.
+- Next: Codex стартует/продолжает `apps/web` на реальном `packages/contracts` и живом `GET /v1/public/tables/:token/bill` вместо мока. Claude продолжает B1.
 
 ## 2026-08-20 — Codex
 
