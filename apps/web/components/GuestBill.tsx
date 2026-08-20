@@ -1,15 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { demoBill } from "../lib/demo-bill";
+import type { PublicBillResponse } from "@fastpay/contracts";
 import { Money } from "./Money";
 
 type Mode = "bill" | "split" | "processing" | "success";
-export function GuestBill() {
+export function GuestBill({ bill }: { bill: PublicBillResponse }) {
   const [mode, setMode] = useState<Mode>("bill");
   const [tip, setTip] = useState(10);
-  const [selected, setSelected] = useState<string[]>(["burger", "lemonade"]);
-  const food = useMemo(() => mode === "split" ? demoBill.items.filter((item) => selected.includes(item.id)).reduce((sum, item) => sum + item.amountKopecks, 0) : demoBill.items.reduce((sum, item) => sum + item.amountKopecks, 0), [mode, selected]);
+  const [selected, setSelected] = useState<string[]>([bill.order?.items[0]?.id ?? ""]);
+  const items = useMemo(() => bill.order?.items ?? [], [bill.order?.items]);
+  const food = useMemo(() => mode === "split" ? items.filter((item) => selected.includes(item.id)).reduce((sum, item) => sum + item.remainingKopecks, 0) : bill.order?.outstandingFoodKopecks ?? 0, [bill.order?.outstandingFoodKopecks, items, mode, selected]);
   const tipAmount = Math.round(food * tip / 100);
   const toggle = (id: string) => setSelected((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]);
   const startPayment = () => { setMode("processing"); window.setTimeout(() => setMode("success"), 900); };
@@ -18,9 +19,9 @@ export function GuestBill() {
   if (mode === "processing") return <section className="screen processing"><div className="spinner" aria-hidden="true" /><p className="eyebrow">ПЕРЕВІРЯЄМО ОПЛАТУ</p><h1>Ще мить…</h1><p>Не закривайте цю сторінку, поки банк підтверджує платіж.</p></section>;
   const isSplit = mode === "split";
   return <section className={isSplit ? "screen split" : "screen"}>
-    {isSplit ? <><button className="back" onClick={() => setMode("bill")} aria-label="Назад">←</button><p className="eyebrow">СТІЛ 02 · GOODMAN</p><h1>Що оплачуєте ви?</h1><p className="subtitle">Оберіть позиції зі спільного рахунку</p></> : <><div className="venue"><div className="venue-logo">G</div><div><p className="eyebrow">ВАШ РАХУНОК</p><h1>{demoBill.venue.name}</h1></div><span className="table">Стіл {demoBill.table.label}</span></div><p className="live" role="status">Рахунок оновлено щойно</p></>}
-    <div className={isSplit ? "choices" : "card"}><p className="label">{isSplit ? "ПОЗИЦІЇ РАХУНКУ" : "ЗАМОВЛЕННЯ"}</p>{demoBill.items.map((item) => isSplit ? <button className={selected.includes(item.id) ? "choice selected" : "choice"} key={item.id} onClick={() => toggle(item.id)} aria-pressed={selected.includes(item.id)}><span className="check" aria-hidden="true">{selected.includes(item.id) ? "✓" : ""}</span><span aria-hidden="true">{item.icon}</span><span className="name">{item.name}<small>{item.detail}</small></span><Money amountKopecks={item.amountKopecks} /></button> : <div className="row" key={item.id}><span className="icon" aria-hidden="true">{item.icon}</span><span className="name">{item.name}<small>{item.detail}</small></span><Money amountKopecks={item.amountKopecks} /></div>)}{!isSplit && <><div className="rule" /><div className="sum"><span>Разом</span><Money amountKopecks={food} size="lg" /></div></>}</div>
-    <div className="card tips"><div><p className="label">ЧАЙОВІ</p><b>Подякувати команді</b><small>Від суми страв</small></div><div className="tip-set">{demoBill.tipOptions.map((value) => <button className={tip === value ? "tip active" : "tip"} key={value} onClick={() => setTip(value)}>{value === 0 ? "Ні" : `${value}%`}</button>)}</div></div>
+    {isSplit ? <><button className="back" onClick={() => setMode("bill")} aria-label="Назад">←</button><p className="eyebrow">СТІЛ {bill.table.label} · {bill.venue.name}</p><h1>Що оплачуєте ви?</h1><p className="subtitle">Оберіть позиції зі спільного рахунку</p></> : <><div className="venue"><div className="venue-logo">{bill.venue.name[0]}</div><div><p className="eyebrow">ВАШ РАХУНОК</p><h1>{bill.venue.name}</h1></div><span className="table">Стіл {bill.table.label}</span></div><p className="live" role="status">Рахунок оновлено щойно</p></>}
+    <div className={isSplit ? "choices" : "card"}><p className="label">{isSplit ? "ПОЗИЦІЇ РАХУНКУ" : "ЗАМОВЛЕННЯ"}</p>{items.map((item) => isSplit ? <button className={selected.includes(item.id) ? "choice selected" : "choice"} key={item.id} onClick={() => toggle(item.id)} aria-pressed={selected.includes(item.id)}><span className="check" aria-hidden="true">{selected.includes(item.id) ? "✓" : ""}</span><span className="name">{item.name}<small>{item.quantity} × <Money amountKopecks={item.unitPriceKopecks} /></small></span><Money amountKopecks={item.remainingKopecks} /></button> : <div className="row" key={item.id}><span className="icon" aria-hidden="true">●</span><span className="name">{item.name}<small>{item.quantity} × <Money amountKopecks={item.unitPriceKopecks} /></small></span><Money amountKopecks={item.remainingKopecks} /></div>)}{!isSplit && <><div className="rule" /><div className="sum"><span>Разом</span><Money amountKopecks={food} size="lg" /></div></>}</div>
+    <div className="card tips"><div><p className="label">ЧАЙОВІ</p><b>Подякувати команді</b><small>Від суми страв</small></div><div className="tip-set">{bill.tips.percentOptions.map((value) => <button className={tip === value ? "tip active" : "tip"} key={value} onClick={() => setTip(value)}>{value === 0 ? "Ні" : `${value}%`}</button>)}</div></div>
     <div className="paybar"><div><span>{isSplit ? "Ваш рахунок" : "До сплати"}</span><Money amountKopecks={food + tipAmount} size="lg" /></div><button className="primary" disabled={!food} onClick={startPayment}>Оплатити</button></div>
     {!isSplit && <button className="link" onClick={() => setMode("split")}>Розділити рахунок →</button>}
   </section>;

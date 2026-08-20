@@ -1,11 +1,13 @@
-/** Development-only fixture. The production route will receive this shape from packages/contracts. */
-export const demoBill = {
-  venue: { name: "GOODMAN" }, table: { label: "02" },
-  items: [
-    { id: "burger", name: "Бургер з трюфельним соусом", detail: "1 × 320,00 ₴", amountKopecks: 32000, icon: "🍔" },
-    { id: "fries", name: "Картопля фрі", detail: "1 × 140,00 ₴", amountKopecks: 14000, icon: "🍟" },
-    { id: "lemonade", name: "Лимонад цитрусовий", detail: "1 × 120,00 ₴", amountKopecks: 12000, icon: "🍋" },
-    { id: "steak", name: "Стейк Ribeye", detail: "1 × 660,00 ₴", amountKopecks: 66000, icon: "🥩" }
-  ],
-  tipOptions: [0, 5, 10, 15]
+import type { PublicBillResponse } from "@fastpay/contracts";
+
+/** Development-only fixture matching the shared API contract exactly. */
+export const demoBill: PublicBillResponse = {
+  venue: { name: "GOODMAN", logoUrl: null }, table: { label: "02" },
+  order: { id: "demo-order", status: "bill_requested", version: 1, currency: "UAH", updatedAt: new Date().toISOString(), outstandingFoodKopecks: 124000, items: [
+    { id: "burger", name: "Бургер з трюфельним соусом", quantity: 1, unitPriceKopecks: 32000, remainingKopecks: 32000, paymentStatus: "unpaid" },
+    { id: "fries", name: "Картопля фрі", quantity: 1, unitPriceKopecks: 14000, remainingKopecks: 14000, paymentStatus: "unpaid" },
+    { id: "lemonade", name: "Лимонад цитрусовий", quantity: 1, unitPriceKopecks: 12000, remainingKopecks: 12000, paymentStatus: "unpaid" },
+    { id: "steak", name: "Стейк Ribeye", quantity: 1, unitPriceKopecks: 66000, remainingKopecks: 66000, paymentStatus: "unpaid" }
+  ] },
+  tips: { percentOptions: [0, 5, 10, 15], customAllowed: true }
 };
