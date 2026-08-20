@@ -4,6 +4,8 @@ Rimvo — PWA-сервис для ресторанов: официант вед�
 
 ## Документация
 
+- [`docs/PRODUCTION_EXECUTION_PLAN.md`](docs/PRODUCTION_EXECUTION_PLAN.md) — порядок доведения MVP до пилота и production-ready критерии.
+
 - [Полное ТЗ MVP](docs/PRODUCT_SPEC_MVP.md)
 - [План реализации: frontend и backend](docs/IMPLEMENTATION_PLANS.md)
 - [Архитектура и доменная модель](docs/architecture/DOMAIN_AND_ARCHITECTURE.md)

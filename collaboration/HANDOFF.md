@@ -1,5 +1,22 @@
 # Handoff — текущая рабочая база
 
+## 2026-08-20 — Codex + Claude (B2 payment integration)
+
+- Added: B2 payment domain merged from Claude's `ce899fc`: server-owned PaymentIntent, item reservation with TTL, provider checkout URL, signed idempotent webhook consumer and public status endpoint.
+- Added: guest checkout creates a server intent with a stable idempotency key, saves only the non-secret intent response for provider return, redirects to `checkoutUrl`, then polls until a webhook-confirmed terminal state. The UI never marks an external payment as successful on redirect alone.
+- Verify: contracts build, API lint/build, web lint/typecheck/build; `npm test -w apps/api -- test/contracts.test.ts` → 13/13 passed.
+- Local environment note: local Docker Postgres rejected the password in `apps/api/.env.example`, so B2 DB-backed integration tests/migrations were not claimed as run in this worktree. CI has an isolated configured Postgres/Redis service.
+- Release gate: `fake` provider is test-only. A signed, reconciled real acquirer adapter and production credentials/webhook configuration remain mandatory before accepting real money.
+
+## 2026-08-20 — Codex (A2 live data and public-bill hardening)
+
+- Added: staff PWA consumes live B1 floor snapshots, order details and venue menu; all live add/remove/request-bill actions use the server `version` and an idempotency key. Floor state now derives from active-order status; realtime events refresh the floor snapshot.
+- Safety: public checkout no longer turns into a fake success screen outside the `demo-table-02` fixture. The guest bill polls its public API endpoint every 15 seconds as a fallback for server-side payment/webhook changes.
+- CI: PR workflow now runs the web lint, strict typecheck and production build.
+- Verify: `npm run lint -w apps/api`, `npm run build -w apps/api`, `npm run lint -w apps/web`, `npm run typecheck -w apps/web`, `npm run build -w apps/web`.
+- API impact: additive `GET /v1/staff/floor`, `GET /v1/staff/orders/:id`; staff may read own-venue menu. COM-007 asks Claude to publish the B2 PaymentIntent contract before checkout is wired.
+- Next: frontend must replace the temporary payment-unavailable response with a PaymentIntent redirect + webhook-confirmed return state when B2 is available.
+
 ## 2026-08-20 — Claude (B2 done)
 
 - Added: полный платёжный домен (`apps/api`) — `PaymentProvider`-интерфейс + `FakeProvider` (реальный HMAC-SHA256, constant-time verify — единственный подключённый провайдер, см. `docs/COMPETITIVE_BRIEF.md` §0/§5 почему не monobank сразу), резервирование позиций через транзакцию Postgres + `SELECT...FOR UPDATE` (без Redis, паттерн из B1), идемпотентные `PaymentIntent` (по `idempotencyKey`) и вебхуки (по `providerEventId`), сверка суммы webhook↔intent с уходом в `review_required` при расхождении, AES-256-GCM шифрование учётных данных venue. `docs/api/FRONTEND_BACKEND_CONTRACT.md` дополнен точными payment-эндпоинтами.

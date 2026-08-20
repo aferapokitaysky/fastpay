@@ -2,7 +2,25 @@
   "name": "@fastpay/web",
   "private": true,
   "version": "0.1.0",
-  "scripts": { "dev": "next dev", "build": "next build", "lint": "eslint .", "typecheck": "tsc --noEmit" },
-  "dependencies": { "@fastpay/contracts": "*", "next": "16.2.1", "react": "19.2.3", "react-dom": "19.2.3" },
-  "devDependencies": { "@types/node": "22.19.19", "@types/react": "19.2.14", "@types/react-dom": "19.2.3", "eslint": "9.39.4", "eslint-config-next": "16.2.1", "typescript": "5.9.3" }
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fastpay/contracts": "*",
+    "next": "^16.3.1",
+    "qrcode.react": "^4.2.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.2.1",
+    "typescript": "5.9.3"
+  }
 }

@@ -19,11 +19,14 @@ import { releaseReservation } from "../payments/reservation.js";
 import { recomputeOrderPaymentStatus } from "../lib/orderState.js";
 
 function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "23505"
+  if (typeof error !== "object" || error === null) return false;
+  const databaseError = error as { code?: unknown; cause?: unknown };
+  // Drizzle 0.45 wraps node-postgres errors in DrizzleQueryError; preserve
+  // webhook idempotency when the original PostgreSQL 23505 is its cause.
+  return databaseError.code === "23505" || (
+    typeof databaseError.cause === "object" &&
+    databaseError.cause !== null &&
+    (databaseError.cause as { code?: unknown }).code === "23505"
   );
 }
 

@@ -126,13 +126,17 @@ export function registerErrorHandler(app: FastifyInstance): void {
       return;
     }
 
-    // Fastify's own validation errors (schema-based route validation).
-    if (typeof error.statusCode === "number" && error.statusCode < 500) {
+    // Fastify 5 deliberately types the error channel as unknown. Narrow its
+    // own validation errors before reading fields supplied by the framework.
+    const fastifyError = typeof error === "object" && error !== null && "statusCode" in error
+      ? error as { statusCode?: unknown; message?: unknown }
+      : null;
+    if (typeof fastifyError?.statusCode === "number" && fastifyError.statusCode < 500) {
       sendErrorEnvelope(
         reply,
-        error.statusCode,
+        fastifyError.statusCode,
         "BAD_REQUEST",
-        error.message || "Bad request",
+        typeof fastifyError.message === "string" && fastifyError.message ? fastifyError.message : "Bad request",
         request.id,
       );
       return;

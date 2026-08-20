@@ -50,12 +50,13 @@
 | `PATCH /v1/staff/tables/:id` | owner/manager | `{ label? }` | `200 StaffTable`; `404 TABLE_NOT_FOUND` |
 | `POST /v1/staff/tables/:id/rotate-qr` | owner/manager | — | `200 StaffTable` — новый `qrToken`, старый инвалидируется немедленно, пишет `audit_events` |
 | `POST /v1/staff/venues/:venueId/menu-items` | owner/manager | `{ name, unitPriceKopecks }` | `201 StaffMenuItem` |
-| `GET /v1/staff/venues/:venueId/menu-items` | owner/manager | — | `200 { menuItems: StaffMenuItem[] }` |
+| `GET /v1/staff/venues/:venueId/menu-items` | любая роль своего venue | — | `200 { menuItems: StaffMenuItem[] }` |
 | `PATCH /v1/staff/menu-items/:id` | owner/manager | `{ name?, unitPriceKopecks? }` | `200 StaffMenuItem` — смена цены НЕ трогает `unitPriceKopecksSnapshot` уже созданных `order_items`, пишет `audit_events` |
 | `POST /v1/staff/employees` | owner/manager | `{ name, role: "manager"\|"waiter", venueId, email?, password?, pin? }` (manager требует email+password, waiter требует pin) | `201 StaffEmployee`; `409 PIN_ALREADY_IN_USE`; `409 EMAIL_ALREADY_EXISTS`; `400` при нарушении требований роли |
 | `GET /v1/staff/employees` | owner/manager | — | `200 { employees: StaffEmployee[] }` |
 | `PATCH /v1/staff/employees/:id` | owner/manager | `{ name?, role?, venueId?, password?, pin? }` | `200 StaffEmployee`; `409 CANNOT_MODIFY_OWNER` для owner-строки |
 | `POST /v1/staff/tables/:id/orders` | любая роль своего venue | — | `201 StaffOrder` (`status: "open"`, `version: 1`); `409 TABLE_HAS_ACTIVE_ORDER` если на столе уже есть незакрытый заказ (гонка защищена partial unique index на уровне БД) |
+| `GET /v1/staff/orders/:id` | любая роль своего venue | — | `200 StaffOrder`; возвращает позиции, версию и актуальный остаток; `404` для чужого tenant |
 | `PATCH /v1/staff/orders/:id` | любая роль своего venue | `{ version, operations: [{ type: "add", menuItemId, quantity, comment? } \| { type: "update", orderItemId, quantity?, comment? } \| { type: "remove", orderItemId }] }` | `200 StaffOrder`; `409 ORDER_VERSION_CONFLICT`; `409 ORDER_NOT_EDITABLE` вне `open`/`bill_requested` |
 | `POST /v1/staff/orders/:id/request-bill` | любая роль своего venue | `{ version }` | `200 StaffOrder` (`status: "bill_requested"`); `409 INVALID_ORDER_TRANSITION` если статус не `open` |
 | `POST /v1/staff/orders/:id/close` | любая роль своего venue | `{ version, reason? }` | `200 StaffOrder` (`status: "closed"`). Waiter с ненулевым `outstandingFoodKopecks` получает `403 FORBIDDEN`; manager/owner обязаны передать `reason` (`400 CLOSE_REASON_REQUIRED` без него) — пишет `audit_events` (`order.closed_with_balance`). `409 ORDER_ALREADY_CLOSED` для повторного закрытия |
@@ -68,7 +69,7 @@
 
 ## Provider (эквайринг, B2)
 
-`POST /v1/webhooks/:provider` реализован для провайдера `fake` (см. `apps/api/src/payments/fakeProvider.ts`) — единственный подключённый провайдер. Реальный monobank-адаптер сознательно отложен (см. `docs/COMPETITIVE_BRIEF.md` §0/§5 — доминирующий конкурент принадлежит monobank, поэтому `PaymentProvider` — интерфейс, а не жёсткая привязка к одному банку) до появления настоящих sandbox-ключей. Вебхук не требует staff-аутентификации — вместо неё подпись (HMAC-SHA256 у `fake`, заголовок `X-Fake-Signature`), верифицируется секретом из `venue_payment_configs` того venue, которому принадлежит intent. Идемпотентен по `providerEventId` (уникальный индекс в `payment_events`) — повторная доставка того же события не переобрабатывается.
+`POST /v1/webhooks/:provider` реализован для провайдера `fake` (см. `apps/api/src/payments/fakeProvider.ts`) — единственный подключённый провайдер. Реальный monobank-адаптер сознательно отложен (см. `docs/COMPETITIVE_BRIEF.md` §0/§5 — доминирующий конкурент принадлежит monobank, поэтому `PaymentProvider` — интерфейс, а не жёсткая привязка к одному банку) до появления настоящих sandbox-ключей. Вебхук не требует staff-аутентификации — вместо неё подпись (HMAC-SHA256 у `fake`, заголовок `X-Fake-Signature`), верифицируется секретом из `venue_payment_configs` того venue, которому принадлежит intent. Идемпотентен по `providerEventId` (уникальный индекс в `payment_events`) — повторная доставка того же события не переобрабатывается. Frontend показывает receipt только после polling статуса `succeeded`, а не по возврату из provider redirect.
 
 ## Обязательный public bill response
 

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title>Rimvo</title>
+  <defs>
+    <linearGradient id="g" x1="92" y1="80" x2="420" y2="440" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00caa6"/>
+      <stop offset=".48" stop-color="#007b6d"/>
+      <stop offset="1" stop-color="#004b45"/>
+    </linearGradient>
+    <linearGradient id="o" x1="210" y1="74" x2="270" y2="140" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffd968"/>
+      <stop offset="1" stop-color="#ed8f16"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="#f5f6f1"/>
+  <path fill="url(#g)" d="M130 386V220c0-54 35-88 88-88h61c29 0 48 18 48 43 0 25-19 43-48 43h-55c-11 0-18 7-18 19v149c0 26-17 44-38 44s-38-18-38-44Zm156 0V178c0-26 17-44 38-44s38 18 38 44v208c0 26-17 44-38 44s-38-18-38-44Zm82-92c0-93 58-160 141-160 48 0 82 22 82 54 0 25-18 42-41 42-18 0-32-9-45-9-30 0-52 30-52 73s22 73 52 73c13 0 27-9 45-9 23 0 41 17 41 42 0 32-34 54-82 54-83 0-141-67-141-160Z" transform="translate(-55 -28) scale(.91)"/>
+  <circle cx="244" cy="106" r="33" fill="url(#o)"/>
+</svg>

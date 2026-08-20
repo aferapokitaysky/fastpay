@@ -1,1 +1,1 @@
-{"name":"Rimvo","short_name":"Rimvo","start_url":"/","display":"standalone","background_color":"#f5f6f1","theme_color":"#006e62","lang":"uk"}
+{"name":"Rimvo — оплата за QR","short_name":"Rimvo","start_url":"/","display":"standalone","background_color":"#f5f6f1","theme_color":"#006e62","lang":"uk","icons":[{"src":"/icons/rimvo-mark.svg","sizes":"any","type":"image/svg+xml","purpose":"any"},{"src":"/icons/rimvo-mark.svg","sizes":"any","type":"image/svg+xml","purpose":"maskable"}]}
