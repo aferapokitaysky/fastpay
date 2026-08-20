@@ -46,7 +46,7 @@
 | `PATCH /v1/staff/tables/:id` | owner/manager | `{ label? }` | `200 StaffTable`; `404 TABLE_NOT_FOUND` |
 | `POST /v1/staff/tables/:id/rotate-qr` | owner/manager | — | `200 StaffTable` — новый `qrToken`, старый инвалидируется немедленно, пишет `audit_events` |
 | `POST /v1/staff/venues/:venueId/menu-items` | owner/manager | `{ name, unitPriceKopecks }` | `201 StaffMenuItem` |
-| `GET /v1/staff/venues/:venueId/menu-items` | owner/manager | — | `200 { menuItems: StaffMenuItem[] }` |
+| `GET /v1/staff/venues/:venueId/menu-items` | любая роль своего venue | — | `200 { menuItems: StaffMenuItem[] }` |
 | `PATCH /v1/staff/menu-items/:id` | owner/manager | `{ name?, unitPriceKopecks? }` | `200 StaffMenuItem` — смена цены НЕ трогает `unitPriceKopecksSnapshot` уже созданных `order_items`, пишет `audit_events` |
 | `POST /v1/staff/employees` | owner/manager | `{ name, role: "manager"\|"waiter", venueId, email?, password?, pin? }` (manager требует email+password, waiter требует pin) | `201 StaffEmployee`; `409 PIN_ALREADY_IN_USE`; `409 EMAIL_ALREADY_EXISTS`; `400` при нарушении требований роли |
 | `GET /v1/staff/employees` | owner/manager | — | `200 { employees: StaffEmployee[] }` |

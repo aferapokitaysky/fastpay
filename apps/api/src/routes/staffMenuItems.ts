@@ -10,7 +10,7 @@ import {
 import { db } from "../db/client.js";
 import { menuItems } from "../db/schema.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
-import { getOrgMenuItemOrThrow, getOrgVenueOrThrow } from "../lib/scoping.js";
+import { assertVenueAccess, getOrgMenuItemOrThrow, getOrgVenueOrThrow } from "../lib/scoping.js";
 import { recordAuditEvent } from "../lib/audit.js";
 
 function toStaffMenuItem(row: typeof menuItems.$inferSelect): StaffMenuItem {
@@ -25,7 +25,8 @@ function toStaffMenuItem(row: typeof menuItems.$inferSelect): StaffMenuItem {
 }
 
 /**
- * Menu items: create/list under a venue, update — owner/manager only.
+ * Menu items: list is available to any authenticated staff member within their
+ * own venue; writes are restricted to owner/manager.
  * Updating price never touches order_items.unit_price_kopecks_snapshot on
  * existing orders (those are point-in-time snapshots, immutable after
  * creation — see routes/staffOrders.ts). A price change writes an audit row.
@@ -52,10 +53,11 @@ export async function staffMenuItemsRoutes(app: FastifyInstance): Promise<void> 
 
   app.get<{ Params: { venueId: string } }>(
     "/v1/staff/venues/:venueId/menu-items",
-    { preHandler: [requireAuth, requireRole("owner", "manager")] },
+    { preHandler: [requireAuth] },
     async (request) => {
       const { organizationId } = request.staff!;
       const venue = await getOrgVenueOrThrow(request.params.venueId, organizationId);
+      assertVenueAccess(request.staff!, venue.id);
       const rows = await db.select().from(menuItems).where(eq(menuItems.venueId, venue.id));
       return ListMenuItemsResponseSchema.parse({ menuItems: rows.map(toStaffMenuItem) });
     },
