@@ -1,1 +1,1 @@
-export const formatMoney = (amountKopecks: number) => new Intl.NumberFormat("uk-UA", { style: "currency", currency: "UAH" }).format(amountKopecks / 100);
+export const formatMoney = (amountKopecks: number) => new Intl.NumberFormat("uk-UA", { style: "currency", currency: "UAH" }).formatToParts(amountKopecks / 100).map((part) => part.type === "currency" ? "₴" : part.value).join("");
