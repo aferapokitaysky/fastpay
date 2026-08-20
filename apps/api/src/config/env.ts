@@ -26,6 +26,20 @@ const EnvSchema = z.object({
         return false;
       }
     }, "PAYMENT_CREDENTIALS_ENCRYPTION_KEY must be 32 bytes, base64-encoded"),
+  // HMAC pepper for guest_profiles.phone_hash (apps/api/src/utils/crypto.ts,
+  // hashPhone) — B3 loyalty opt-in. Any non-empty string works (HMAC, not a
+  // fixed-length cipher key like PAYMENT_CREDENTIALS_ENCRYPTION_KEY), but
+  // treat it with the same care: never reuse across environments, rotating
+  // it makes every existing guest_profiles row unrecognizable (a returning
+  // guest's next visit just creates a new row instead of matching the old
+  // one — not a data-loss bug, just silently loses loyalty history).
+  //
+  // NOTE for whoever edits CI: this must also be added to
+  // .github/workflows/ci.yml's api job "Test" step env block, or every test
+  // fails at import time — PAYMENT_CREDENTIALS_ENCRYPTION_KEY above shipped
+  // in B2 without doing this and broke CI (see collaboration/HANDOFF.md,
+  // "B2 done" — fixed same day, don't repeat it).
+  GUEST_PHONE_HASH_PEPPER: z.string({ required_error: "GUEST_PHONE_HASH_PEPPER is required" }).min(1),
 });
 
 function loadEnv() {
