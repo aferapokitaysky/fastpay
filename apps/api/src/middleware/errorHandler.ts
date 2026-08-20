@@ -40,6 +40,53 @@ export class ServiceUnavailableError extends AppError {
   }
 }
 
+export class UnauthorizedError extends AppError {
+  constructor(
+    code = "UNAUTHORIZED",
+    message = "Missing or invalid credentials",
+    details?: Record<string, unknown>,
+  ) {
+    super(code, message, 401, details);
+    this.name = "UnauthorizedError";
+  }
+}
+
+export class ForbiddenError extends AppError {
+  constructor(
+    code = "FORBIDDEN",
+    message = "Not allowed to perform this action",
+    details?: Record<string, unknown>,
+  ) {
+    super(code, message, 403, details);
+    this.name = "ForbiddenError";
+  }
+}
+
+export class ConflictError extends AppError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(code, message, 409, details);
+    this.name = "ConflictError";
+  }
+}
+
+export class TooManyRequestsError extends AppError {
+  constructor(
+    code = "RATE_LIMITED",
+    message = "Too many attempts, try again later",
+    details?: Record<string, unknown>,
+  ) {
+    super(code, message, 429, details);
+    this.name = "TooManyRequestsError";
+  }
+}
+
+export class BadRequestError extends AppError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(code, message, 400, details);
+    this.name = "BadRequestError";
+  }
+}
+
 function sendErrorEnvelope(
   reply: FastifyReply,
   statusCode: number,
