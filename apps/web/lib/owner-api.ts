@@ -8,12 +8,16 @@ import {
   OwnerRegisterRequestSchema,
   OwnerRegisterResponseSchema,
   PasswordLoginRequestSchema,
+  PaymentConfigResponseSchema,
   RotateQrResponseSchema,
+  SetPaymentConfigRequestSchema,
   StaffFloorSchema,
   StaffSessionResponseSchema,
   StaffTableSchema,
   type OwnerRegisterRequest,
   type PasswordLoginRequest,
+  type PaymentConfigResponse,
+  type SetPaymentConfigRequest,
   type StaffSessionResponse,
 } from "@fastpay/contracts";
 import { StaffApiError } from "./staff-api";
@@ -52,6 +56,8 @@ export const ownerApi = {
   listTables: (floorId: string, token: string) => request(`/v1/staff/floors/${floorId}/tables`, { method: "GET" }, ListTablesResponseSchema, token),
   createTable: (floorId: string, label: string, token: string) => request(`/v1/staff/floors/${floorId}/tables`, { method: "POST", body: JSON.stringify(CreateTableRequestSchema.parse({ label })), headers: { "idempotency-key": crypto.randomUUID() } }, StaffTableSchema, token),
   rotateQr: (tableId: string, token: string) => request(`/v1/staff/tables/${tableId}/rotate-qr`, { method: "POST", headers: { "idempotency-key": crypto.randomUUID() } }, RotateQrResponseSchema, token),
+  getPaymentConfig: (venueId: string, token: string) => request(`/v1/staff/venues/${venueId}/payment-config`, { method: "GET" }, PaymentConfigResponseSchema, token),
+  setPaymentConfig: (venueId: string, body: SetPaymentConfigRequest, token: string) => request(`/v1/staff/venues/${venueId}/payment-config`, { method: "POST", body: JSON.stringify(SetPaymentConfigRequestSchema.parse(body)), headers: { "idempotency-key": crypto.randomUUID() } }, PaymentConfigResponseSchema, token),
 };
 
 export const storeOwnerSession = (session: StaffSessionResponse) => sessionStorage.setItem("rimvo.owner.session", JSON.stringify(session));
