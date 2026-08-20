@@ -1,4 +1,5 @@
 import {
+  type AnyPgColumn,
   index,
   integer,
   jsonb,
@@ -14,10 +15,13 @@ import { sql } from "drizzle-orm";
 /**
  * B0 shipped the minimal schema (organizations/venues/floors/tables/
  * menu_items/orders/order_items) for the demo seed + public bill read
- * endpoint. B1 (this slice) adds the restaurant operating domain: staff
+ * endpoint. B1 added the restaurant operating domain: staff
  * accounts/sessions/RBAC and an audit log — see docs/PRODUCT_SPEC_MVP.md
- * section 3/4 and docs/IMPLEMENTATION_PLANS.md "B1". Payment/tip/loyalty
- * tables remain out of scope (B2).
+ * section 3/4 and docs/IMPLEMENTATION_PLANS.md "B1". B2 (this slice) adds the
+ * payment domain: payment_intents/payment_intent_items/payment_events,
+ * per-venue payment provider config, and a reservation mechanism bolted onto
+ * order_items — see docs/IMPLEMENTATION_PLANS.md "B2" and
+ * apps/api/src/payments/*. Loyalty/CRM tables remain out of scope (B3+).
  */
 
 export const orderStatusEnum = pgEnum("order_status", [
@@ -41,6 +45,24 @@ export const tableStatusEnum = pgEnum("table_status", [
   "occupied",
   "paying",
   "paid",
+]);
+
+/**
+ * PaymentIntent lifecycle, per docs/PRODUCT_SPEC_MVP.md section 4:
+ *   created -> provider_pending -> succeeded | failed | expired | cancelled
+ * `review_required` is a B2 addition (not in the section-4 diagram, which
+ * predates the payment domain): a webhook whose amount doesn't match the
+ * intent's total is never silently accepted (section 7) — it lands here
+ * instead of `succeeded`, and no order_items are marked paid.
+ */
+export const paymentIntentStatusEnum = pgEnum("payment_intent_status", [
+  "created",
+  "provider_pending",
+  "succeeded",
+  "failed",
+  "expired",
+  "cancelled",
+  "review_required",
 ]);
 
 export const organizations = pgTable("organizations", {
@@ -171,6 +193,18 @@ export const orderItems = pgTable(
     quantity: integer("quantity").notNull().default(1),
     comment: text("comment"),
     paymentStatus: orderItemPaymentStatusEnum("payment_status").notNull().default("unpaid"),
+    // Reservation mechanism (B2) — see apps/api/src/payments/reservation.ts.
+    // Set together, inside the payment-intent-creation transaction, while a
+    // PaymentIntent holds this item; cleared (both to null) the moment that
+    // intent resolves (succeeded/failed/expired/cancelled) so the item
+    // becomes payable again immediately rather than waiting out the TTL.
+    // `reservedUntil < now()` is treated as "not reserved" even if the
+    // columns haven't been cleared yet (lazy expiry — see B2 task notes).
+    reservedByPaymentIntentId: uuid("reserved_by_payment_intent_id").references(
+      (): AnyPgColumn => paymentIntents.id,
+      { onDelete: "set null" },
+    ),
+    reservedUntil: timestamp("reserved_until", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -179,6 +213,122 @@ export const orderItems = pgTable(
   },
   (table) => ({
     orderIdIdx: index("order_items_order_id_idx").on(table.orderId),
+    reservedByPaymentIntentIdIdx: index("order_items_reserved_by_payment_intent_id_idx").on(
+      table.reservedByPaymentIntentId,
+    ),
+  }),
+);
+
+/**
+ * Payment domain (B2) — see docs/PRODUCT_SPEC_MVP.md sections 4/5.3/5.4/7,
+ * docs/IMPLEMENTATION_PLANS.md "B2", and apps/api/src/payments/*.
+ *
+ * `payment_intents`: one row per checkout attempt. `idempotencyKey` is
+ * client-supplied and globally unique — a double-tap "Оплатити" that
+ * resubmits the same key returns the existing intent (200) instead of
+ * creating a second one (see routes/publicPaymentIntents.ts).
+ *
+ * `payment_intent_items`: which order_items a given intent covers, and the
+ * amount reserved for each at reservation time (the item's full remaining
+ * line total — no partial-item-amount splitting in this MVP, see B2 task
+ * notes / PRODUCT_SPEC_MVP.md 5.4).
+ *
+ * `payment_events`: one row per webhook delivery. `providerEventId` is
+ * unique — this is what makes webhook processing idempotent: a duplicate
+ * delivery hits the unique constraint and is a no-op (see
+ * routes/webhooks.ts). `rawPayload` must never contain card numbers/CVV —
+ * the fake provider's payloads are safe by construction; a real provider
+ * adapter would need to sanitize before writing here.
+ *
+ * `venue_payment_configs`: one row per venue (unique `venueId`), storing the
+ * AES-256-GCM-encrypted provider credentials — see utils/crypto.ts and
+ * routes/staffPaymentConfig.ts. The decrypted credential string is never
+ * returned in any API response.
+ */
+export const paymentIntents = pgTable(
+  "payment_intents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    status: paymentIntentStatusEnum("status").notNull().default("created"),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    amountFoodKopecks: integer("amount_food_kopecks").notNull(),
+    amountTipKopecks: integer("amount_tip_kopecks").notNull(),
+    currency: text("currency").notNull(),
+    provider: text("provider").notNull(),
+    providerInvoiceId: text("provider_invoice_id"),
+    checkoutUrl: text("checkout_url"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => ({
+    orderIdIdx: index("payment_intents_order_id_idx").on(table.orderId),
+    idempotencyKeyIdx: index("payment_intents_idempotency_key_idx").on(table.idempotencyKey),
+    providerInvoiceIdIdx: index("payment_intents_provider_invoice_id_idx").on(
+      table.providerInvoiceId,
+    ),
+  }),
+);
+
+export const paymentIntentItems = pgTable(
+  "payment_intent_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    paymentIntentId: uuid("payment_intent_id")
+      .notNull()
+      .references(() => paymentIntents.id, { onDelete: "cascade" }),
+    orderItemId: uuid("order_item_id")
+      .notNull()
+      .references(() => orderItems.id, { onDelete: "cascade" }),
+    amountKopecks: integer("amount_kopecks").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    paymentIntentIdIdx: index("payment_intent_items_payment_intent_id_idx").on(
+      table.paymentIntentId,
+    ),
+    orderItemIdIdx: index("payment_intent_items_order_item_id_idx").on(table.orderItemId),
+  }),
+);
+
+export const paymentEvents = pgTable(
+  "payment_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    paymentIntentId: uuid("payment_intent_id").references(() => paymentIntents.id, {
+      onDelete: "set null",
+    }),
+    provider: text("provider").notNull(),
+    providerEventId: text("provider_event_id").notNull().unique(),
+    rawPayload: jsonb("raw_payload").notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+  },
+  (table) => ({
+    paymentIntentIdIdx: index("payment_events_payment_intent_id_idx").on(table.paymentIntentId),
+  }),
+);
+
+export const venuePaymentConfigs = pgTable(
+  "venue_payment_configs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    venueId: uuid("venue_id")
+      .notNull()
+      .unique()
+      .references(() => venues.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    encryptedCredentials: text("encrypted_credentials").notNull(),
+    configuredAt: timestamp("configured_at", { withTimezone: true }).notNull().defaultNow(),
+    lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }),
+  },
+  (table) => ({
+    venueIdIdx: index("venue_payment_configs_venue_id_idx").on(table.venueId),
   }),
 );
 

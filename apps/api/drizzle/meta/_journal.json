@@ -15,6 +15,13 @@
       "when": 1787236288204,
       "tag": "0001_chubby_gunslinger",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787239706871,
+      "tag": "0002_payment_domain",
+      "breakpoints": true
     }
   ]
 }

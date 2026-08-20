@@ -91,8 +91,10 @@ export async function publicBillRoutes(app: FastifyInstance): Promise<void> {
           name: item.name,
           quantity: item.quantity,
           unitPriceKopecks: item.unitPriceKopecks,
-          // No payment/allocation tracking yet: every item is fully outstanding.
-          remainingKopecks: item.unitPriceKopecks * item.quantity,
+          // No partial-item-amount tracking in this MVP (see payment_intent_items
+          // doc comment in db/schema.ts): an item is either fully outstanding or
+          // fully paid, set by the B2 webhook consumer (routes/webhooks.ts).
+          remainingKopecks: item.paymentStatus === "paid" ? 0 : item.unitPriceKopecks * item.quantity,
           paymentStatus: item.paymentStatus,
         }));
 
