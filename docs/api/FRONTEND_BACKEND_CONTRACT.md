@@ -33,7 +33,7 @@
     "currency": "UAH",
     "updatedAt": "2026-08-20T12:00:00Z"
   },
-  "tips": { "amountOptionsKopecks": [5000, 10000, 20000], "customAllowed": true }
+  "tips": { "percentOptions": [5, 10, 15], "customAllowed": true }
 }
 ```
 
