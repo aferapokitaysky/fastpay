@@ -70,3 +70,93 @@ export function authHeader(token: string): { authorization: string } {
 export function uniqueEmail(label: string): string {
   return `${label}-${randomUUID()}@test.fastpay.ua`;
 }
+
+/** Same self-isolation rationale as uniqueEmail() — payment_intents.idempotency_key is unique. */
+export function uniqueIdempotencyKey(label: string): string {
+  return `${label}-${randomUUID()}`;
+}
+
+/**
+ * Registers an owner, creates a floor/table/menu-item, opens an order with
+ * one item on it, and configures the "fake" payment provider for that
+ * venue — everything a payment-domain test needs, in one call. Returns the
+ * webhook signing secret in the clear (it's what the test used to configure
+ * the provider) so tests can build validly-signed fake webhooks with
+ * buildSignedFakeWebhookRequest from src/payments/fakeProvider.ts.
+ */
+export async function setupPayableOrder(
+  app: FastifyInstance,
+  label: string,
+): Promise<{
+  ownerToken: string;
+  venueId: string;
+  tableId: string;
+  qrToken: string;
+  orderId: string;
+  orderItemId: string;
+  unitPriceKopecks: number;
+  webhookSecret: string;
+}> {
+  const owner = await registerOwner(app, { email: uniqueEmail(label) });
+
+  const floor = await app.inject({
+    method: "POST",
+    url: `/v1/staff/venues/${owner.venueId}/floors`,
+    headers: authHeader(owner.token),
+    payload: { name: "Main Hall" },
+  });
+  const floorId = (floor.json() as { id: string }).id;
+
+  const table = await app.inject({
+    method: "POST",
+    url: `/v1/staff/floors/${floorId}/tables`,
+    headers: authHeader(owner.token),
+    payload: { label: "01" },
+  });
+  const tableBody = table.json() as { id: string; qrToken: string };
+
+  const menuItem = await app.inject({
+    method: "POST",
+    url: `/v1/staff/venues/${owner.venueId}/menu-items`,
+    headers: authHeader(owner.token),
+    payload: { name: "Бургер", unitPriceKopecks: 32000 },
+  });
+  const menuItemId = (menuItem.json() as { id: string }).id;
+
+  const opened = await app.inject({
+    method: "POST",
+    url: `/v1/staff/tables/${tableBody.id}/orders`,
+    headers: authHeader(owner.token),
+  });
+  const order = opened.json() as { id: string; version: number };
+
+  const withItem = await app.inject({
+    method: "PATCH",
+    url: `/v1/staff/orders/${order.id}`,
+    headers: authHeader(owner.token),
+    payload: { version: order.version, operations: [{ type: "add", menuItemId, quantity: 1 }] },
+  });
+  const orderItemId = (withItem.json() as { items: { id: string }[] }).items[0]!.id;
+
+  const webhookSecret = `secret-${randomUUID()}`;
+  const paymentConfig = await app.inject({
+    method: "POST",
+    url: `/v1/staff/venues/${owner.venueId}/payment-config`,
+    headers: authHeader(owner.token),
+    payload: { provider: "fake", credentials: webhookSecret },
+  });
+  if (paymentConfig.statusCode !== 200) {
+    throw new Error(`setupPayableOrder: payment-config failed: ${paymentConfig.statusCode} ${paymentConfig.body}`);
+  }
+
+  return {
+    ownerToken: owner.token,
+    venueId: owner.venueId,
+    tableId: tableBody.id,
+    qrToken: tableBody.qrToken,
+    orderId: order.id,
+    orderItemId,
+    unitPriceKopecks: 32000,
+    webhookSecret,
+  };
+}

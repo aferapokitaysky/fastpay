@@ -75,6 +75,9 @@ jobs:
         env:
           DATABASE_URL: postgresql://fastpay:fastpay@localhost:5432/fastpay_test
           REDIS_URL: redis://localhost:6379
+          # CI-only throwaway key (B2: apps/api/src/utils/crypto.ts) — 32 bytes, base64.
+          # Never reused for real credentials; regenerate freely if it ever needs rotating.
+          PAYMENT_CREDENTIALS_ENCRYPTION_KEY: "5mc4e5MO4zcozfZJThTc2bApRYhZl0l/MK8e2codcJU="
         run: npm test --if-present
       - name: Skipped (no apps/api yet)
         if: steps.has_api.outputs.exists == 'false'
