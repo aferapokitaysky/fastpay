@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  documentation-guard:
+    name: Documentation guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify required collaboration and product files
+        run: |
+          test -f README.md
+          test -f docs/PRODUCT_SPEC_MVP.md
+          test -f docs/IMPLEMENTATION_PLANS.md
+          test -f docs/api/FRONTEND_BACKEND_CONTRACT.md
+          test -f collaboration/README.md
+          test -f collaboration/INBOX.md
+          test -f collaboration/DECISIONS.md
+      - name: Reject obvious committed secrets
+        run: |
+          ! rg -n --glob '!docs/**' --glob '!*.example' '(sk-[A-Za-z0-9_-]{20,}|MONOBANK.*TOKEN\s*=\s*[^$]|DATABASE_URL\s*=\s*(postgres|mysql))' .
