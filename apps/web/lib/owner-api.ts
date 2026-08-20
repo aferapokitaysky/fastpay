@@ -1,5 +1,6 @@
 import {
   CreateTableRequestSchema,
+  CreateFloorRequestSchema,
   ErrorEnvelopeSchema,
   ListFloorsResponseSchema,
   ListTablesResponseSchema,
@@ -8,6 +9,7 @@ import {
   OwnerRegisterResponseSchema,
   PasswordLoginRequestSchema,
   RotateQrResponseSchema,
+  StaffFloorSchema,
   StaffSessionResponseSchema,
   StaffTableSchema,
   type OwnerRegisterRequest,
@@ -46,6 +48,7 @@ export const ownerApi = {
   login: (body: PasswordLoginRequest) => request("/v1/staff/session/password", { method: "POST", body: JSON.stringify(PasswordLoginRequestSchema.parse(body)) }, StaffSessionResponseSchema),
   listVenues: (token: string) => request("/v1/staff/venues", { method: "GET" }, ListVenuesResponseSchema, token),
   listFloors: (venueId: string, token: string) => request(`/v1/staff/venues/${venueId}/floors`, { method: "GET" }, ListFloorsResponseSchema, token),
+  createFloor: (venueId: string, name: string, token: string) => request(`/v1/staff/venues/${venueId}/floors`, { method: "POST", body: JSON.stringify(CreateFloorRequestSchema.parse({ name })), headers: { "idempotency-key": crypto.randomUUID() } }, StaffFloorSchema, token),
   listTables: (floorId: string, token: string) => request(`/v1/staff/floors/${floorId}/tables`, { method: "GET" }, ListTablesResponseSchema, token),
   createTable: (floorId: string, label: string, token: string) => request(`/v1/staff/floors/${floorId}/tables`, { method: "POST", body: JSON.stringify(CreateTableRequestSchema.parse({ label })), headers: { "idempotency-key": crypto.randomUUID() } }, StaffTableSchema, token),
   rotateQr: (tableId: string, token: string) => request(`/v1/staff/tables/${tableId}/rotate-qr`, { method: "POST", headers: { "idempotency-key": crypto.randomUUID() } }, RotateQrResponseSchema, token),
