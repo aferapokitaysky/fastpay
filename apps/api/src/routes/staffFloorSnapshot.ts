@@ -6,6 +6,13 @@ import { floors, orderItems, orders, tables, venues } from "../db/schema.js";
 import { requireAuth } from "../middleware/auth.js";
 
 /** A waiter-safe read model for the staff PWA floor. No QR tokens or payment data are exposed. */
+function floorStatus(tableStatus: "free" | "occupied" | "paying" | "paid", orderStatus?: string): "free" | "occupied" | "paying" | "paid" {
+  if (!orderStatus) return tableStatus;
+  if (orderStatus === "payment_pending" || orderStatus === "partially_paid") return "paying";
+  if (orderStatus === "paid") return "paid";
+  return "occupied";
+}
+
 export async function staffFloorSnapshotRoutes(app: FastifyInstance): Promise<void> {
   app.get("/v1/staff/floor", { preHandler: [requireAuth] }, async (request) => {
     const session = request.staff!;
@@ -22,6 +29,6 @@ export async function staffFloorSnapshotRoutes(app: FastifyInstance): Promise<vo
     const totalByOrder = new Map<string, number>();
     for (const item of itemRows) totalByOrder.set(item.orderId, (totalByOrder.get(item.orderId) ?? 0) + item.unitPriceKopecksSnapshot * item.quantity);
     const orderByTable = new Map(orderRows.map((order) => [order.tableId, order]));
-    return StaffFloorSnapshotResponseSchema.parse({ floors: floorRows.map((floor) => ({ id: floor.id, name: floor.name, tables: tableRows.filter((table) => table.floorId === floor.id).map((table) => { const order = orderByTable.get(table.id); return { id: table.id, label: table.label, status: table.status, activeOrder: order ? { id: order.id, status: order.status, version: order.version, outstandingFoodKopecks: totalByOrder.get(order.id) ?? 0, updatedAt: order.updatedAt.toISOString() } : null }; }) })) });
+    return StaffFloorSnapshotResponseSchema.parse({ floors: floorRows.map((floor) => ({ id: floor.id, name: floor.name, tables: tableRows.filter((table) => table.floorId === floor.id).map((table) => { const order = orderByTable.get(table.id); return { id: table.id, label: table.label, status: floorStatus(table.status, order?.status), activeOrder: order ? { id: order.id, status: order.status, version: order.version, outstandingFoodKopecks: totalByOrder.get(order.id) ?? 0, updatedAt: order.updatedAt.toISOString() } : null }; }) })) });
   });
 }
