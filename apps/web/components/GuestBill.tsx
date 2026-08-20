@@ -5,7 +5,7 @@ import type { PublicBillResponse, PublicOrderItem } from "@fastpay/contracts";
 import { Money } from "./Money";
 
 type Mode = "bill" | "split" | "processing" | "success";
-/** Чайові — або відсоток від суми страв, або власна сума в копійках. */
+/** Чайові — або відсоток від суми страв (з налаштувань закладу), або власна сума в копійках. */
 type Tip = { kind: "percent"; percent: number } | { kind: "custom"; kopecks: number };
 
 /**
@@ -17,7 +17,8 @@ const isPayable = (item: PublicOrderItem) => item.paymentStatus !== "paid" && it
 export function GuestBill({ bill }: { bill: PublicBillResponse }) {
   const [mode, setMode] = useState<Mode>("bill");
   const [tip, setTip] = useState<Tip>({ kind: "percent", percent: 10 });
-  const [customTip, setCustomTip] = useState("");
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customTipInput, setCustomTipInput] = useState("");
   /** Знімок оплаченої суми: після виходу зі split-режиму `food` перераховується на весь рахунок. */
   const [paid, setPaid] = useState<{ foodKopecks: number; tipKopecks: number; at: Date } | null>(null);
   const items = useMemo(() => bill.order?.items ?? [], [bill.order?.items]);
@@ -31,14 +32,17 @@ export function GuestBill({ bill }: { bill: PublicBillResponse }) {
   const total = food + tipAmount;
 
   const toggle = (id: string) => setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
-  const setCustom = (raw: string) => {
-    setCustomTip(raw);
+  const setPresetTip = (percent: number) => { setCustomOpen(false); setTip({ kind: "percent", percent }); };
+  const setCustomAmount = (raw: string) => {
+    setCustomTipInput(raw);
     const kopecks = Math.round(Number(raw.replace(",", ".")) * 100);
     setTip({ kind: "custom", kopecks: Number.isFinite(kopecks) && kopecks > 0 ? kopecks : 0 });
   };
+  const openCustomTip = () => { setCustomOpen(true); setTip({ kind: "custom", kopecks: 0 }); };
   const startPayment = () => { const snapshot = { foodKopecks: food, tipKopecks: tipAmount, at: new Date() }; setMode("processing"); window.setTimeout(() => { setPaid(snapshot); setMode("success"); }, 900); };
 
-  // «Ні» рендеримо завжди: сервер надсилає лише ненульові пресети, а відмова від чайових обов'язкова (ТЗ §5.8).
+  // «Ні» рендеримо завжди: сервер надсилає лише ненульові пресети (див. apps/api/src/routes/publicBill.ts),
+  // а відмова від чайових обов'язкова (ТЗ §5.8) — це UI-рішення, а не серверні дані.
   const percentOptions = useMemo(() => [...new Set([0, ...bill.tips.percentOptions])].sort((a, b) => a - b), [bill.tips.percentOptions]);
   const isSplit = mode === "split";
 
@@ -46,14 +50,14 @@ export function GuestBill({ bill }: { bill: PublicBillResponse }) {
   if (mode === "processing") return <section className="screen processing"><div className="spinner" aria-hidden="true" /><p className="eyebrow">ПЕРЕВІРЯЄМО ОПЛАТУ</p><h1>Ще мить…</h1><p>Не закривайте цю сторінку, поки банк підтверджує платіж.</p></section>;
 
   return <section className={isSplit ? "screen split" : "screen"}>
-    {isSplit ? <><button className="back" onClick={() => setMode("bill")} aria-label="Назад">←</button><p className="eyebrow">СТІЛ {bill.table.label} · {bill.venue.name}</p><h1>Що оплачуєте ви?</h1><p className="subtitle">Оберіть позиції зі спільного рахунку</p></> : <><div className="venue"><div className="venue-logo">{bill.venue.name[0]}</div><div><p className="eyebrow">ВАШ РАХУНОК</p><h1>{bill.venue.name}</h1></div><span className="table">Стіл {bill.table.label}</span></div><p className="live" role="status">Рахунок оновлено щойно</p></>}
+    {isSplit ? <><button className="back" onClick={() => setMode("bill")} aria-label="Назад">←</button><p className="eyebrow">СТІЛ {bill.table.label} · {bill.venue.name}</p><h1>Що оплачуєте ви?</h1><p className="subtitle">Оберіть позиції зі спільного рахунку</p></> : <><div className="venue"><div className="venue-logo">{bill.venue.name[0]}</div><div><p className="eyebrow">ВАШ РАХУНОК</p><h1>{bill.venue.name}</h1></div><span className="table">Стіл {bill.table.label}</span></div><div className="guest-meta"><p className="live" role="status">Рахунок оновлено щойно</p><span>Захищено FastPay</span></div></>}
     <div className={isSplit ? "choices" : "card"}><p className="label">{isSplit ? "ПОЗИЦІЇ РАХУНКУ" : "ЗАМОВЛЕННЯ"}</p>{items.map((item) => {
       const payable = isPayable(item);
       if (!isSplit) return <div className={payable ? "row" : "row paid"} key={item.id}><span className="icon" aria-hidden="true">{payable ? "●" : "✓"}</span><span className="name">{item.name}<small>{payable ? <>{item.quantity} × <Money amountKopecks={item.unitPriceKopecks} /></> : "Вже сплачено"}</small></span><Money amountKopecks={payable ? item.remainingKopecks : item.unitPriceKopecks * item.quantity} /></div>;
       const isSelected = payable && selected.includes(item.id);
       return <button className={`choice${isSelected ? " selected" : ""}${payable ? "" : " paid"}`} key={item.id} onClick={() => payable && toggle(item.id)} disabled={!payable} aria-pressed={isSelected}><span className="check" aria-hidden="true">{isSelected ? "✓" : ""}</span><span className="name">{item.name}<small>{payable ? <>{item.quantity} × <Money amountKopecks={item.unitPriceKopecks} /></> : "Вже сплачено"}</small></span><Money amountKopecks={payable ? item.remainingKopecks : item.unitPriceKopecks * item.quantity} /></button>;
     })}{!isSplit && <><div className="rule" /><div className="sum"><span>Разом</span><Money amountKopecks={food} size="lg" /></div></>}</div>
-    <div className="card tips"><div><p className="label">ЧАЙОВІ</p><b>Подякувати команді</b><small>Від суми страв</small></div><div className="tip-set">{percentOptions.map((value) => <button className={tip.kind === "percent" && tip.percent === value ? "tip active" : "tip"} key={value} onClick={() => { setTip({ kind: "percent", percent: value }); setCustomTip(""); }} aria-pressed={tip.kind === "percent" && tip.percent === value}>{value === 0 ? "Ні" : `${value}%`}</button>)}{bill.tips.customAllowed && <label className={tip.kind === "custom" ? "tip tip-custom active" : "tip tip-custom"}><span className="sr-only">Власна сума чайових, ₴</span><input inputMode="decimal" placeholder="Своя" value={customTip} onChange={(event) => setCustom(event.target.value)} /></label>}</div></div>
+    <div className="card tips"><div><p className="label">ЧАЙОВІ</p><b>Подякувати команді</b><small>{tip.kind === "percent" ? "Від суми страв" : tipAmount ? <>Чайові: <Money amountKopecks={tipAmount} /></> : "Уся сума йде ресторану"}</small></div><div className="tip-set">{percentOptions.map((value) => <button className={tip.kind === "percent" && tip.percent === value ? "tip active" : "tip"} key={value} onClick={() => setPresetTip(value)} aria-pressed={tip.kind === "percent" && tip.percent === value}>{value === 0 ? "Ні" : `${value}%`}</button>)}{bill.tips.customAllowed && <button className={tip.kind === "custom" ? "tip active custom-tip" : "tip custom-tip"} onClick={openCustomTip} aria-pressed={tip.kind === "custom"}>Своя</button>}</div>{tip.kind === "custom" && <label className="custom-tip-field">Сума чайових, ₴<input inputMode="decimal" type="number" min="0" step="1" value={customTipInput} onChange={(event) => setCustomAmount(event.target.value)} placeholder="0" autoFocus /></label>}</div>
     <div className="paybar"><div><span>{isSplit ? "Ваш рахунок" : "До сплати"}</span><Money amountKopecks={total} size="lg" /></div><button className="primary" disabled={!food} onClick={startPayment}>Оплатити</button></div>
     {!isSplit && payableIds.length > 1 && <button className="link" onClick={() => setMode("split")}>Розділити рахунок →</button>}
   </section>;

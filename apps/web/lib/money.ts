@@ -1,13 +1,14 @@
 /**
  * Єдина точка форматування грошей у застосунку.
  *
- * Навмисно НЕ використовуємо `style: "currency"`: символ гривні залежить від версії ICU,
- * тому Node (SSR) віддає "320,00 ₴", а Chromium (клієнт) — "320,00 грн". Через це React
+ * Не використовуємо `style: "currency"` напряму: символ гривні залежить від версії ICU,
+ * тому Node (SSR) міг віддавати "320,00 ₴", а Chromium (клієнт) — "320,00 грн". React
  * падав з hydration mismatch на кожній сумі, а гість бачив різні позначення валюти.
- * Форматуємо лише число (стабільне між середовищами) і додаємо символ самі.
+ * `formatToParts` бере вже локалізовані числові частини (стабільні між середовищами)
+ * і підміняє лише саму частину-символ на "₴", зберігаючи порядок/пробіли з локалі.
  */
-const NUMBER_FORMAT = new Intl.NumberFormat("uk-UA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-export const UAH_SYMBOL = "₴";
-
-export const formatMoney = (amountKopecks: number) => `${NUMBER_FORMAT.format(amountKopecks / 100)} ${UAH_SYMBOL}`;
+export const formatMoney = (amountKopecks: number) =>
+  new Intl.NumberFormat("uk-UA", { style: "currency", currency: "UAH" })
+    .formatToParts(amountKopecks / 100)
+    .map((part) => (part.type === "currency" ? "₴" : part.value))
+    .join("");

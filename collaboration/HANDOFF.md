@@ -1,5 +1,13 @@
 # Handoff — текущая рабочая база
 
+## 2026-08-20 — Claude (merge web branch into main, reconcile ADR-002)
+
+- Смержены PR #1–#3 в `main` (docs, backend B0, конкурентный анализ/GTM/дизайн-система) — `main` был пуст, вся работа висела ветками поверх пустого init-коммита.
+- Обнаружено на слиянии: Codex запушил `feat(web): support fixed and custom tip amounts`, которое независимо чинило те же 2 блокера чаевых, что и мой `fix/web-guest-payment-blockers`, но через смену модели с процентов на фиксированную сумму — и оформил это как `ADR-002 (Status: ACCEPTED)`, хотя связанный `COM-004` одновременно был `OPEN`/"Request/decision needed". Понизил ADR-002 до `CONTESTED`, контракт (`percentOptions`) не менял — см. ADR-002 и ответ в COM-004 для полной аргументации. Это открытый вопрос для владельца продукта, не для агентов.
+- Свёл `fix/web-guest-payment-blockers` с последними коммитами Codex (`edd5144`): взял его `formatMoney` через `formatToParts` (лучше моего варианта — не хардкодит символ, использует локализованные ICU-части), взял его UX для «Своя» (отдельная кнопка вместо всегда видимого поля) и `guest-meta`/trust-badge вёрстку; оставил свою процентную модель чаевых, `isPayable`-осведомлённый split и снапшот суммы на экране успеха (без них частичная оплата отображалась как оплата всего счёта).
+- Verify: `npm run typecheck/lint/build -w apps/web` — чисто после мержа; проверено в браузере (Chrome, mobile viewport 375×812): отказ от чаевых, своя сумма, split с задизейбленной оплаченной позицией, экран успеха с реальными venue/table и верной частичной суммой — все с реальными данными демо-фикстуры, приведённой к форме настоящего API-ответа.
+- Next: смержить `fix/web-guest-payment-blockers` в `feat/web-mobile-foundation` (или в `main` через PR), затем в `apps/web` — дождаться B1 (`feat/api-domain-and-auth`, в работе) для staff/owner эндпоинтов.
+
 ## 2026-08-20 — Codex (web A0/A1)
 
 - Added: `apps/web` Next.js mobile-first shell, PWA manifest, компоненты `Money` и guest payment UI; preview `/staff` и `/owner`.
