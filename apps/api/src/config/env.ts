@@ -10,6 +10,22 @@ const EnvSchema = z.object({
     .url("REDIS_URL must be a valid redis connection string"),
   PORT: z.coerce.number().int().positive().default(4000),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  // AES-256-GCM key for encrypting venue payment provider credentials at
+  // rest (apps/api/src/utils/crypto.ts) — 32 raw bytes, base64-encoded.
+  // Generate one with:
+  //   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+  // Never reuse across environments; rotating it invalidates every
+  // already-stored venue_payment_configs.encrypted_credentials row (out of
+  // scope for B2 — see HANDOFF).
+  PAYMENT_CREDENTIALS_ENCRYPTION_KEY: z
+    .string({ required_error: "PAYMENT_CREDENTIALS_ENCRYPTION_KEY is required" })
+    .refine((value) => {
+      try {
+        return Buffer.from(value, "base64").length === 32;
+      } catch {
+        return false;
+      }
+    }, "PAYMENT_CREDENTIALS_ENCRYPTION_KEY must be 32 bytes, base64-encoded"),
 });
 
 function loadEnv() {
