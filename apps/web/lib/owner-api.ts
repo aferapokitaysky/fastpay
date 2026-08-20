@@ -23,6 +23,7 @@ import {
 import { StaffApiError } from "./staff-api";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const EmptyResponseSchema = { parse: (_data: unknown): undefined => undefined };
 
 async function request<T>(path: string, init: RequestInit, schema: { parse: (data: unknown) => T }, token?: string): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
@@ -58,6 +59,7 @@ export const ownerApi = {
   rotateQr: (tableId: string, token: string) => request(`/v1/staff/tables/${tableId}/rotate-qr`, { method: "POST", headers: { "idempotency-key": crypto.randomUUID() } }, RotateQrResponseSchema, token),
   getPaymentConfig: (venueId: string, token: string) => request(`/v1/staff/venues/${venueId}/payment-config`, { method: "GET" }, PaymentConfigResponseSchema, token),
   setPaymentConfig: (venueId: string, body: SetPaymentConfigRequest, token: string) => request(`/v1/staff/venues/${venueId}/payment-config`, { method: "POST", body: JSON.stringify(SetPaymentConfigRequestSchema.parse(body)), headers: { "idempotency-key": crypto.randomUUID() } }, PaymentConfigResponseSchema, token),
+  logout: (token: string) => request("/v1/staff/session/logout", { method: "POST" }, EmptyResponseSchema, token),
 };
 
 export const storeOwnerSession = (session: StaffSessionResponse) => sessionStorage.setItem("rimvo.owner.session", JSON.stringify(session));
