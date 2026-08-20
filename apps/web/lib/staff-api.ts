@@ -1,6 +1,7 @@
 import { ErrorEnvelopeSchema, ListMenuItemsResponseSchema, PinLoginRequestSchema, StaffFloorSnapshotResponseSchema, StaffOrderSchema, StaffSessionResponseSchema, type CloseOrderRequest, type OrderItemOperation, type StaffSessionResponse } from "@fastpay/contracts";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const EmptyResponseSchema = { parse: (_data: unknown): undefined => undefined };
 
 export class StaffApiError extends Error {
   constructor(public readonly code: string, public readonly requestId?: string, public readonly details?: Record<string, unknown>, message?: string) { super(message ?? code); }
@@ -22,6 +23,7 @@ export const staffApi = {
   updateOrder: (orderId: string, version: number, operations: OrderItemOperation[], token: string) => request("/v1/staff/orders/" + orderId, { method: "PATCH", body: JSON.stringify({ version, operations }), headers: { "idempotency-key": crypto.randomUUID() } }, StaffOrderSchema, token),
   requestBill: (orderId: string, version: number, token: string) => request("/v1/staff/orders/" + orderId + "/request-bill", { method: "POST", body: JSON.stringify({ version }), headers: { "idempotency-key": crypto.randomUUID() } }, StaffOrderSchema, token),
   closeOrder: (orderId: string, body: CloseOrderRequest, token: string) => request("/v1/staff/orders/" + orderId + "/close", { method: "POST", body: JSON.stringify(body), headers: { "idempotency-key": crypto.randomUUID() } }, StaffOrderSchema, token),
+  logout: (token: string) => request("/v1/staff/session/logout", { method: "POST" }, EmptyResponseSchema, token),
 };
 
 export const storeStaffSession = (session: StaffSessionResponse) => sessionStorage.setItem("rimvo.staff.session", JSON.stringify(session));
