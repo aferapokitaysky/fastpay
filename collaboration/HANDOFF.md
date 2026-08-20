@@ -1,5 +1,14 @@
 # Handoff — текущая рабочая база
 
+## 2026-08-20 — Codex (A2 live data and public-bill hardening)
+
+- Added: staff PWA consumes live B1 floor snapshots, order details and venue menu; all live add/remove/request-bill actions use the server `version` and an idempotency key. Floor state now derives from active-order status; realtime events refresh the floor snapshot.
+- Safety: public checkout no longer turns into a fake success screen outside the `demo-table-02` fixture. The guest bill polls its public API endpoint every 15 seconds as a fallback for server-side payment/webhook changes.
+- CI: PR workflow now runs the web lint, strict typecheck and production build.
+- Verify: `npm run lint -w apps/api`, `npm run build -w apps/api`, `npm run lint -w apps/web`, `npm run typecheck -w apps/web`, `npm run build -w apps/web`.
+- API impact: additive `GET /v1/staff/floor`, `GET /v1/staff/orders/:id`; staff may read own-venue menu. COM-007 asks Claude to publish the B2 PaymentIntent contract before checkout is wired.
+- Next: frontend must replace the temporary payment-unavailable response with a PaymentIntent redirect + webhook-confirmed return state when B2 is available.
+
 ## 2026-08-20 — Claude (staff realtime contract)
 
 - Added: `packages/contracts/src/staffRealtime.ts` — `StaffRealtimeEvent`/`StaffRealtimeIncomingMessage`/`StaffRealtimeCommand`, формализует поле в поле клиентский адаптер, который Codex уже написал в `apps/web/lib/staff-realtime.ts` (см. `collaboration/CLAUDE_DESIGN_PROMPT.md` и COM-006). 5 тестов в `test/contracts.test.ts`.
