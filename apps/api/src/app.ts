@@ -11,6 +11,7 @@ import { staffTablesRoutes } from "./routes/staffTables.js";
 import { staffMenuItemsRoutes } from "./routes/staffMenuItems.js";
 import { staffOrdersRoutes } from "./routes/staffOrders.js";
 import { staffEmployeesRoutes } from "./routes/staffEmployees.js";
+import { staffFloorSnapshotRoutes } from "./routes/staffFloorSnapshot.js";
 
 export function buildApp(): FastifyInstance {
   const app = Fastify({
@@ -33,6 +34,7 @@ export function buildApp(): FastifyInstance {
   app.register(staffMenuItemsRoutes);
   app.register(staffOrdersRoutes);
   app.register(staffEmployeesRoutes);
+  app.register(staffFloorSnapshotRoutes);
 
   return app;
 }
