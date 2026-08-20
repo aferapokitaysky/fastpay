@@ -23,18 +23,18 @@
 
 **Backend (Claude)**
 
-- [ ] Organization/venue/floor/table/menu/order CRUD.
-- [ ] Staff auth: PIN never stored plaintext; short-lived access + refresh/session strategy; role checks owner/manager/waiter.
-- [ ] Optimistic concurrency with `order.version`, `409 ORDER_VERSION_CONFLICT` and recoverable payload.
-- [ ] Audit events for menu, orders, PIN/auth and QR reissue.
-- [ ] Staff endpoints: floor snapshot, open order, add/remove item, request bill, close table.
+- [x] Organization/venue/floor/table/menu/order CRUD.
+- [x] Staff auth: PIN never stored plaintext; short-lived access + refresh/session strategy; role checks owner/manager/waiter.
+- [x] Optimistic concurrency with `order.version`, `409 ORDER_VERSION_CONFLICT` and recoverable payload.
+- [x] Audit events for menu, orders, PIN/auth and QR reissue.
+- [x] Staff endpoints: floor snapshot, open order, add/remove item, request bill, close table.
 
 **Frontend (Codex)**
 
-- [ ] Replace staff fixtures with API adapter and loading/error/empty states.
-- [ ] PIN lifecycle, expired session UI and role-aware route guards.
-- [ ] Order editor with conflict resolution: show latest version, prevent double submit.
-- [ ] Owner tables/QR use live data; download PNG/PDF only after backend supports it.
+- [x] Replace staff fixtures with API adapter and loading/error/empty states.
+- [x] PIN lifecycle, expired session UI and role-aware route guards.
+- [x] Order editor with conflict resolution: show latest version, prevent double submit.
+- [x] Owner tables/QR use live data; browser print and PNG export are generated from the active public token.
 
 **Acceptance:** two waiters cannot silently overwrite each other; all mutations are tenant-scoped.
 
@@ -51,10 +51,10 @@
 
 **Frontend (Codex)**
 
-- [ ] Payment confirmation screen uses actual PaymentIntent response.
-- [ ] Redirect to provider, return route, polling fallback and final paid/failed states.
-- [ ] Split UI disables reserved/paid items from server state.
-- [ ] Persist a payment snapshot for success receipt; avoid optimistic “paid” before webhook.
+- [x] Payment confirmation screen uses actual PaymentIntent response.
+- [x] Redirect to provider, return route, polling fallback and final paid/failed states.
+- [x] Split UI disables reserved/paid items from server state.
+- [x] Persist a payment snapshot for success receipt; avoid optimistic “paid” before webhook.
 
 **Acceptance:** repeat tap, browser refresh, repeated webhook and out-of-order webhook cannot charge/close twice.
 
