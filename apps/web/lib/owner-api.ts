@@ -1,9 +1,11 @@
 import {
   CreateTableRequestSchema,
+  CreateEmployeeRequestSchema,
   CreateMenuItemRequestSchema,
   CreateFloorRequestSchema,
   ErrorEnvelopeSchema,
   ListFloorsResponseSchema,
+  ListEmployeesResponseSchema,
   ListMenuItemsResponseSchema,
   ListTablesResponseSchema,
   ListVenuesResponseSchema,
@@ -14,16 +16,19 @@ import {
   RotateQrResponseSchema,
   SetPaymentConfigRequestSchema,
   StaffMenuItemSchema,
+  StaffEmployeeSchema,
   StaffFloorSchema,
   StaffSessionResponseSchema,
   StaffTableSchema,
   UpdateMenuItemRequestSchema,
   type OwnerRegisterRequest,
   type CreateMenuItemRequest,
+  type CreateEmployeeRequest,
   type PasswordLoginRequest,
   type PaymentConfigResponse,
   type SetPaymentConfigRequest,
   type UpdateMenuItemRequest,
+  type StaffEmployee,
   type StaffSessionResponse,
 } from "@fastpay/contracts";
 import { StaffApiError } from "./staff-api";
@@ -68,6 +73,8 @@ export const ownerApi = {
   listMenuItems: (venueId: string, token: string) => request(`/v1/staff/venues/${venueId}/menu-items`, { method: "GET" }, ListMenuItemsResponseSchema, token),
   createMenuItem: (venueId: string, body: CreateMenuItemRequest, token: string) => request(`/v1/staff/venues/${venueId}/menu-items`, { method: "POST", body: JSON.stringify(CreateMenuItemRequestSchema.parse(body)), headers: { "idempotency-key": crypto.randomUUID() } }, StaffMenuItemSchema, token),
   updateMenuItem: (menuItemId: string, body: UpdateMenuItemRequest, token: string) => request(`/v1/staff/menu-items/${menuItemId}`, { method: "PATCH", body: JSON.stringify(UpdateMenuItemRequestSchema.parse(body)), headers: { "idempotency-key": crypto.randomUUID() } }, StaffMenuItemSchema, token),
+  listEmployees: (token: string) => request("/v1/staff/employees", { method: "GET" }, ListEmployeesResponseSchema, token),
+  createEmployee: (body: CreateEmployeeRequest, token: string) => request("/v1/staff/employees", { method: "POST", body: JSON.stringify(CreateEmployeeRequestSchema.parse(body)), headers: { "idempotency-key": crypto.randomUUID() } }, StaffEmployeeSchema, token),
   logout: (token: string) => request("/v1/staff/session/logout", { method: "POST" }, EmptyResponseSchema, token),
 };
 
