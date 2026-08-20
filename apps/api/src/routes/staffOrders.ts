@@ -44,6 +44,17 @@ async function versionConflict(orderId: string) {
  * — see docs/PRODUCT_SPEC_MVP.md section 4/5.2 and the B1 task spec.
  */
 export async function staffOrdersRoutes(app: FastifyInstance): Promise<void> {
+  app.get<{ Params: { id: string } }>(
+    "/v1/staff/orders/:id",
+    { preHandler: [requireAuth] },
+    async (request) => {
+      const { organizationId } = request.staff!;
+      const order = await getOrgOrderOrThrow(request.params.id, organizationId);
+      assertVenueAccess(request.staff!, order.venueId);
+      return OpenOrderResponseSchema.parse(await loadStaffOrder(order.id));
+    },
+  );
+
   // POST /v1/staff/tables/:id/orders — opens a new order.
   // Enforces "one non-closed order per table": the transaction below
   // checks-then-inserts for a clean 409, and the partial unique index
