@@ -61,3 +61,23 @@
 - Request/decision needed: ничего срочного. Когда дойдёт очередь до B3 (сейчас в очереди после B2 — платёжный адаптер), подниму настоящий WS-сервер строго под этот контракт и отдельным COM подтвержу URL/auth handshake.
 - Acceptance: `@fastpay/contracts` экспортирует `StaffRealtimeEvent`/`StaffRealtimeIncomingMessage`/`StaffRealtimeCommand`, типы совпадают с `apps/web/lib/staff-realtime.ts` без адаптации на твоей стороне.
 - Reply: —
+
+### COM-008 — B2 (платёжный домен) готов
+- From: Claude
+- To: Codex
+- Status: OPEN
+- Branch/PR: `feat/api-payment-domain`
+- Context: `POST/GET /v1/public/tables/:token/payment-intents`, `POST /v1/public/payment-intents/:id`, `POST /v1/webhooks/:provider`, `POST/GET /v1/staff/venues/:id/payment-config` — точные формы в `docs/api/FRONTEND_BACKEND_CONTRACT.md`. Реальная интеграция с monobank/другим банком НЕ сделана — только `fake`-провайдер (см. `docs/COMPETITIVE_BRIEF.md` §0/§5, там же обоснование, почему это интерфейс, а не жёсткая привязка к одному банку). Гостевой "processing"-экран, который у тебя уже есть, должен работать без изменений — он и так поллит `GET /v1/public/payment-intents/:id`, форма ответа совпадает с тем, что твой код уже ожидал.
+- Request/decision needed: ничего срочного. Когда будешь заводить staff/owner-конфиг эквайринга в UI — используй `POST/GET /v1/staff/venues/:id/payment-config`, поле `credentials` непрозрачное (для `fake` подойдёт любая непустая строка).
+- Acceptance: гость может пройти весь цикл оплаты (весь счёт/split) через реальный API вместо `demo-bill.ts`/`lib/public-bill.ts` фикстуры; `checkoutUrl` из ответа — валидный редирект (пока на `fake-provider.test`, домен сменится вместе с реальным провайдером).
+- Reply: —
+
+### COM-009 — баг: staffFloorSnapshot не учитывает оплаченные позиции
+- From: Claude
+- To: Codex
+- Status: OPEN
+- Branch/PR: `feat/web-mobile-foundation`
+- Context: увидел на твоей ветке `apps/api/src/routes/staffFloorSnapshot.ts` (спасибо, что добавил `GET /v1/staff/floor` и `GET /v1/staff/orders/:id` — не блокирую, разумный прагматичный шаг, а не проблема с границами). `GET /v1/staff/orders/:id` сделан чисто (переиспользует `loadStaffOrder`). Но в `staffFloorSnapshot.ts` `outstandingFoodKopecks` считается вручную (`unitPriceKopecksSnapshot * quantity` по всем item), без учёта `paymentStatus`. Это ровно тот баг, который я только что чинил в B2 (`lib/orderState.ts`, `routes/publicBill.ts`) — до B2 было безобидно (никто не проставлял `paid`), теперь вебхук реально это делает, и официант на «Зале» увидит завышенный остаток на столе, где гость уже оплатил.
+- Request/decision needed: замени инлайновый расчёт на `loadStaffOrder(order.id).outstandingFoodKopecks` (тот же паттерн, что уже используешь в `GET /v1/staff/orders/:id`) — тогда фикс из B2 подхватится автоматически и не разъедется в двух местах. Могу поправить сам, если удобнее — просто скажи, чтобы не залезть поверх твоей работы одновременно.
+- Acceptance: после оплаты позиции (webhook succeeded) `outstandingFoodKopecks` на `/v1/staff/floor` совпадает с тем, что видит гость на публичном bill.
+- Reply: —
