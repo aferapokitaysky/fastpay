@@ -419,7 +419,7 @@ export const auditEvents = pgTable(
  * A `pending` row survives regardless of whether any staff device is
  * currently connected — a reconnecting WebSocket client is caught up by
  * querying rows here, which is what makes this durable without a separate
- * delivery-retry/DLQ table (see realtime/dispatcher.ts doc comment for the
+ * delivery-retry/DLQ table (see realtime/pubsub.ts doc comment for the
  * full reasoning).
  */
 export const realtimeEventTypeEnum = pgEnum("realtime_event_type", [

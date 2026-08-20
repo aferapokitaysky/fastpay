@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import websocketPlugin from "@fastify/websocket";
 import { genRequestId, requestIdPlugin } from "./middleware/requestId.js";
 import { registerErrorHandler } from "./middleware/errorHandler.js";
 import { healthRoutes } from "./routes/health.js";
@@ -14,6 +15,7 @@ import { staffEmployeesRoutes } from "./routes/staffEmployees.js";
 import { publicPaymentIntentsRoutes } from "./routes/publicPaymentIntents.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 import { staffPaymentConfigRoutes } from "./routes/staffPaymentConfig.js";
+import { staffRealtimeRoutes } from "./routes/staffRealtime.js";
 
 export function buildApp(): FastifyInstance {
   const app = Fastify({
@@ -25,6 +27,7 @@ export function buildApp(): FastifyInstance {
 
   registerErrorHandler(app);
 
+  app.register(websocketPlugin);
   app.register(requestIdPlugin);
   app.register(healthRoutes);
   app.register(publicBillRoutes);
@@ -39,6 +42,7 @@ export function buildApp(): FastifyInstance {
   app.register(publicPaymentIntentsRoutes);
   app.register(webhookRoutes);
   app.register(staffPaymentConfigRoutes);
+  app.register(staffRealtimeRoutes);
 
   return app;
 }
