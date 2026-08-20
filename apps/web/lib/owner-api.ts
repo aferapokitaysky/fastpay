@@ -21,6 +21,7 @@ import {
   StaffSessionResponseSchema,
   StaffTableSchema,
   UpdateMenuItemRequestSchema,
+  UpdateEmployeeRequestSchema,
   type OwnerRegisterRequest,
   type CreateMenuItemRequest,
   type CreateEmployeeRequest,
@@ -28,6 +29,7 @@ import {
   type PaymentConfigResponse,
   type SetPaymentConfigRequest,
   type UpdateMenuItemRequest,
+  type UpdateEmployeeRequest,
   type StaffEmployee,
   type StaffSessionResponse,
 } from "@fastpay/contracts";
@@ -75,6 +77,7 @@ export const ownerApi = {
   updateMenuItem: (menuItemId: string, body: UpdateMenuItemRequest, token: string) => request(`/v1/staff/menu-items/${menuItemId}`, { method: "PATCH", body: JSON.stringify(UpdateMenuItemRequestSchema.parse(body)), headers: { "idempotency-key": crypto.randomUUID() } }, StaffMenuItemSchema, token),
   listEmployees: (token: string) => request("/v1/staff/employees", { method: "GET" }, ListEmployeesResponseSchema, token),
   createEmployee: (body: CreateEmployeeRequest, token: string) => request("/v1/staff/employees", { method: "POST", body: JSON.stringify(CreateEmployeeRequestSchema.parse(body)), headers: { "idempotency-key": crypto.randomUUID() } }, StaffEmployeeSchema, token),
+  updateEmployee: (employeeId: string, body: UpdateEmployeeRequest, token: string) => request(`/v1/staff/employees/${employeeId}`, { method: "PATCH", body: JSON.stringify(UpdateEmployeeRequestSchema.parse(body)), headers: { "idempotency-key": crypto.randomUUID() } }, StaffEmployeeSchema, token),
   logout: (token: string) => request("/v1/staff/session/logout", { method: "POST" }, EmptyResponseSchema, token),
 };
 
