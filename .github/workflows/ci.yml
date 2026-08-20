@@ -26,3 +26,56 @@ jobs:
       - name: Reject obvious committed secrets
         run: |
           ! rg -n --glob '!docs/**' --glob '!*.example' '(sk-[A-Za-z0-9_-]{20,}|MONOBANK.*TOKEN\s*=\s*[^$]|DATABASE_URL\s*=\s*(postgres|mysql))' .
+
+  api:
+    name: api (lint, build, test)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: fastpay
+          POSTGRES_PASSWORD: fastpay
+          POSTGRES_DB: fastpay_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U fastpay" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - id: has_api
+        run: echo "exists=$(test -f apps/api/package.json && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v4
+        if: steps.has_api.outputs.exists == 'true'
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        if: steps.has_api.outputs.exists == 'true'
+        run: npm ci
+      - name: Lint
+        if: steps.has_api.outputs.exists == 'true'
+        run: npm run lint -w apps/api --if-present
+      - name: Migrate
+        if: steps.has_api.outputs.exists == 'true'
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://fastpay:fastpay@localhost:5432/fastpay_test
+        run: npm run db:migrate --if-present
+      - name: Build
+        if: steps.has_api.outputs.exists == 'true'
+        run: npm run build -w apps/api --if-present
+      - name: Test
+        if: steps.has_api.outputs.exists == 'true'
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://fastpay:fastpay@localhost:5432/fastpay_test
+          REDIS_URL: redis://localhost:6379
+        run: npm test --if-present
+      - name: Skipped (no apps/api yet)
+        if: steps.has_api.outputs.exists == 'false'
+        run: echo "apps/api/package.json not found yet — skipping"

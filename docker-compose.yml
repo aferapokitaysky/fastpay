@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: fastpay
+      POSTGRES_PASSWORD: fastpay
+      POSTGRES_DB: fastpay
+    ports:
+      - "5432:5432"
+    volumes:
+      - fastpay_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fastpay"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    env_file:
+      - apps/api/.env
+    environment:
+      DATABASE_URL: postgresql://fastpay:fastpay@postgres:5432/fastpay
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # web:
+  #   Добавляет Codex после старта apps/web (A0), см. collaboration/INBOX.md COM-001.
+
+volumes:
+  fastpay_postgres_data:
