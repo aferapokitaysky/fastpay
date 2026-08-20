@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { PublicBillResponse, PublicOrderItem } from "@fastpay/contracts";
+import { useEffect, useMemo, useState } from "react";
+import { PublicBillResponseSchema, type PublicBillResponse, type PublicOrderItem } from "@fastpay/contracts";
 import { Money } from "./Money";
 
 type Mode = "bill" | "split" | "checkout" | "processing" | "success";
@@ -14,7 +14,8 @@ type Tip = { kind: "percent"; percent: number } | { kind: "custom"; kopecks: num
  */
 const isPayable = (item: PublicOrderItem) => item.paymentStatus !== "paid" && item.remainingKopecks > 0;
 
-export function GuestBill({ bill, token }: { bill: PublicBillResponse; token: string }) {
+export function GuestBill({ bill: initialBill, token }: { bill: PublicBillResponse; token: string }) {
+  const [bill, setBill] = useState(initialBill);
   const [mode, setMode] = useState<Mode>("bill");
   const [tip, setTip] = useState<Tip>({ kind: "percent", percent: 10 });
   const [customOpen, setCustomOpen] = useState(false);
@@ -28,6 +29,22 @@ export function GuestBill({ bill, token }: { bill: PublicBillResponse; token: st
   /** Знімок суми та екрана-джерела на момент переходу до checkout: інакше після bill->checkout `food` рахувався б за `selected` з дефолтного split-набору, а «Назад» не знав би, куди повертатись. */
   const [checkoutFood, setCheckoutFood] = useState(0);
   const [checkoutFrom, setCheckoutFrom] = useState<"bill" | "split">("bill");
+
+  useEffect(() => {
+    if (token === "demo-table-02") return;
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const response = await fetch(`${apiUrl}/v1/public/tables/${encodeURIComponent(token)}/bill`, { cache: "no-store" });
+        if (!response.ok || cancelled) return;
+        const next = PublicBillResponseSchema.parse(await response.json());
+        if (!cancelled) setBill(next);
+      } catch { /* Network failures leave the last verified bill visible. */ }
+    };
+    const interval = window.setInterval(refresh, 15_000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [token]);
 
   const liveFood = useMemo(() => mode === "split"
     ? items.filter((item) => isPayable(item) && selected.includes(item.id)).reduce((sum, item) => sum + item.remainingKopecks, 0)
