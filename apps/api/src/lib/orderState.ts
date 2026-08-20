@@ -2,7 +2,7 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { StaffOrder, StaffOrderItem } from "@fastpay/contracts";
 import { db } from "../db/client.js";
-import { orderItems, orders } from "../db/schema.js";
+import { floors, orderItems, orders, tables, venues } from "../db/schema.js";
 import * as schema from "../db/schema.js";
 import { NotFoundError } from "../middleware/errorHandler.js";
 
@@ -81,4 +81,26 @@ export async function recomputeOrderPaymentStatus(tx: DbOrTx, orderId: string): 
     .update(orders)
     .set({ status: unpaid ? "partially_paid" : "paid", version: sql`${orders.version} + 1` })
     .where(eq(orders.id, orderId));
+}
+
+/**
+ * Resolves an order's venue + table (id + label), via the same
+ * order -> table -> floor -> venue join chain as lib/scoping.ts. Used by the
+ * realtime outbox writers (routes/staffOrders.ts, routes/publicPaymentIntents.ts,
+ * routes/webhooks.ts) — every realtime_events row needs a venueId to route
+ * delivery and a tableId/label to render, and none of those callers already
+ * have both on hand.
+ */
+export async function getOrderVenueAndTable(
+  orderId: string,
+): Promise<{ venueId: string; tableId: string; tableLabel: string } | null> {
+  const [row] = await db
+    .select({ venueId: venues.id, tableId: tables.id, tableLabel: tables.label })
+    .from(orders)
+    .innerJoin(tables, eq(tables.id, orders.tableId))
+    .innerJoin(floors, eq(floors.id, tables.floorId))
+    .innerJoin(venues, eq(venues.id, floors.venueId))
+    .where(eq(orders.id, orderId))
+    .limit(1);
+  return row ?? null;
 }
