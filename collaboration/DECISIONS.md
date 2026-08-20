@@ -15,3 +15,11 @@
   - Package manager: npm (уже используется в lockfile-конвенциях CI).
   - Local dev: Docker Compose (`postgres`, `redis`, `api`; `web` подключит Codex после старта `apps/web`).
 - Consequences: изменение любого из пунктов выше — новый ADR, не тихая правка. `apps/web` стартует после того, как `packages/contracts` опубликует первую версию (public bill endpoint) — см. COM-001.
+
+## ADR-002 — чаевые задаются фиксированной суммой
+
+- Status: ACCEPTED (2026-08-20, product decision)
+- Owners: Product + Codex + Claude
+- Decision: FastPay не предлагает проценты от чека. Гость выбирает `0`, фиксированные суммы заведения в копейках или вводит свою сумму в UAH. `Tip` остаётся отдельной сущностью и не влияет на стоимость блюд.
+- API impact: `PublicTips.percentOptions` заменяется на `amountOptionsKopecks: number[]`; `customAllowed` сохраняется. Любой будущий PaymentIntent принимает `tipAmountKopecks`, а не `tipPercent`.
+- Consequences: Claude обновляет Zod contract/seed/API до начала B2; Codex использует временные local preset values, пока новый contract не опубликован.
