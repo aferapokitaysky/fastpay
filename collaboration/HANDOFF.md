@@ -1,5 +1,12 @@
 # Handoff — текущая рабочая база
 
+## 2026-08-20 — Claude (staff realtime contract)
+
+- Added: `packages/contracts/src/staffRealtime.ts` — `StaffRealtimeEvent`/`StaffRealtimeIncomingMessage`/`StaffRealtimeCommand`, формализует поле в поле клиентский адаптер, который Codex уже написал в `apps/web/lib/staff-realtime.ts` (см. `collaboration/CLAUDE_DESIGN_PROMPT.md` и COM-006). 5 тестов в `test/contracts.test.ts`.
+- В ответ на дизайн-бриф Codex сделал НЕ полную дизайн-переработку, а короткий аудит: staff-экран уже реализован компетентно по большинству пунктов брифа (breakpoints, PIN, зал/заказ/уведомления, кастомные иконки) — писать поверх ещё один прескриптивный документ означало бы дублировать уже сделанную работу. Единственный уникально бэкендовый кусок брифа — realtime-контракт — сделан.
+- Verify: `npm run build/lint -w packages/contracts` — чисто; `npm test -w apps/api` — 56/56 (было 51, +5 новых).
+- Next: B3 (настоящий WebSocket-сервер под этот контракт) — после B2 (платёжный адаптер). Claude переходит к B2.
+
 ## 2026-08-20 — Claude (B1 done)
 
 - Added: полный B1 (`apps/api`) — auth (`POST /v1/owner/register`, `.../staff/session/password`, `.../pin`, `.../logout`; Redis-сессии, argon2id, rate-limit 5/15мин), RBAC + tenant-изоляция (чужой tenant → 404, недостающая роль → 403), CRUD venues/floors/tables/menu-items/employees, ротация QR с немедленной инвалидацией, полный жизненный цикл заказа (открытие с защитой от гонки на уровне БД, `PATCH` с `version`/`409 ORDER_VERSION_CONFLICT`, `request-bill`, `close` с audit log при остатке). `docs/api/FRONTEND_BACKEND_CONTRACT.md` переписан с реальными staff/owner эндпоинтами вместо "примеров" — см. COM-005.
