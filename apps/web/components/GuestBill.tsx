@@ -14,13 +14,14 @@ type Tip = { kind: "percent"; percent: number } | { kind: "custom"; kopecks: num
  */
 const isPayable = (item: PublicOrderItem) => item.paymentStatus !== "paid" && item.remainingKopecks > 0;
 
-export function GuestBill({ bill }: { bill: PublicBillResponse }) {
+export function GuestBill({ bill, token }: { bill: PublicBillResponse; token: string }) {
   const [mode, setMode] = useState<Mode>("bill");
   const [tip, setTip] = useState<Tip>({ kind: "percent", percent: 10 });
   const [customOpen, setCustomOpen] = useState(false);
   const [customTipInput, setCustomTipInput] = useState("");
   /** Знімок оплаченої суми: після виходу зі split-режиму `food` перераховується на весь рахунок. */
   const [paid, setPaid] = useState<{ foodKopecks: number; tipKopecks: number; at: Date } | null>(null);
+  const [paymentError, setPaymentError] = useState("");
   const items = useMemo(() => bill.order?.items ?? [], [bill.order?.items]);
   const payableIds = useMemo(() => items.filter(isPayable).map((item) => item.id), [items]);
   const [selected, setSelected] = useState<string[]>(() => payableIds.slice(0, 1));
@@ -44,7 +45,7 @@ export function GuestBill({ bill }: { bill: PublicBillResponse }) {
   };
   const openCustomTip = () => { setCustomOpen(true); setTip({ kind: "custom", kopecks: 0 }); };
   const goToCheckout = () => { setCheckoutFood(liveFood); setCheckoutFrom(isSplit ? "split" : "bill"); setMode("checkout"); };
-  const confirmPayment = () => { const snapshot = { foodKopecks: food, tipKopecks: tipAmount, at: new Date() }; setMode("processing"); window.setTimeout(() => { setPaid(snapshot); setMode("success"); }, 900); };
+  const confirmPayment = () => { setPaymentError(""); if (token !== "demo-table-02") { setPaymentError("Оплата ще не підключена для цього закладу. Будь ласка, попросіть офіціанта про допомогу."); return; } const snapshot = { foodKopecks: food, tipKopecks: tipAmount, at: new Date() }; setMode("processing"); window.setTimeout(() => { setPaid(snapshot); setMode("success"); }, 900); };
 
   // «Ні» рендеримо завжди: сервер надсилає лише ненульові пресети (див. apps/api/src/routes/publicBill.ts),
   // а відмова від чайових обов'язкова (ТЗ §5.8) — це UI-рішення, а не серверні дані.
@@ -53,7 +54,7 @@ export function GuestBill({ bill }: { bill: PublicBillResponse }) {
 
   if (mode === "success" && paid) return <section className="screen success"><div className="success-icon" aria-hidden="true">✓</div><p className="eyebrow">ОПЛАТУ ПІДТВЕРДЖЕНО</p><h1>Дякуємо!<br />{bill.order && paid.foodKopecks < bill.order.outstandingFoodKopecks ? "Вашу частину сплачено." : "Все сплачено."}</h1><Money amountKopecks={paid.foodKopecks + paid.tipKopecks} size="lg" /><p className="receipt">{bill.venue.name} · Стіл {bill.table.label} <span suppressHydrationWarning>{new Intl.DateTimeFormat("uk-UA", { hour: "2-digit", minute: "2-digit" }).format(paid.at)}</span></p><div className="loyalty"><span aria-hidden="true">✦</span><p><b>Повернемо 5% наступного разу</b><small>Залиште номер після візиту</small></p><span aria-hidden="true">›</span></div><button className="secondary" onClick={() => setMode("bill")}>Переглянути рахунок</button></section>;
   if (mode === "processing") return <section className="screen processing"><div className="spinner" aria-hidden="true" /><p className="eyebrow">ПЕРЕВІРЯЄМО ОПЛАТУ</p><h1>Ще мить…</h1><p>Не закривайте цю сторінку, поки банк підтверджує платіж.</p></section>;
-  if (mode === "checkout") return <section className="screen checkout"><button className="back" onClick={() => setMode(checkoutFrom)} aria-label="Назад до рахунку">←</button><p className="eyebrow">БЕЗПЕЧНА ОПЛАТА</p><h1>Перевірте суму</h1><p className="subtitle">{bill.venue.name} · Стіл {bill.table.label}</p><div className="checkout-total"><span>До сплати</span><Money amountKopecks={total} size="lg" /><small>Рахунок готовий до підтвердження</small></div><div className="checkout-lines"><div><span>Страви</span><Money amountKopecks={food} /></div><div><span>Чайові</span><Money amountKopecks={tipAmount} /></div></div><div className="payment-method"><span className="card-brand">••••</span><p><b>Картка, Apple Pay або Google Pay</b><small>Спосіб оплати оберете на захищеній сторінці банку</small></p><span>›</span></div><div className="checkout-safe"><span>✓</span> Дані картки не передаються ресторану</div><button className="primary full" onClick={confirmPayment}>Перейти до оплати <span>→</span></button></section>;
+  if (mode === "checkout") return <section className="screen checkout"><button className="back" onClick={() => setMode(checkoutFrom)} aria-label="Назад до рахунку">←</button><p className="eyebrow">БЕЗПЕЧНА ОПЛАТА</p><h1>Перевірте суму</h1><p className="subtitle">{bill.venue.name} · Стіл {bill.table.label}</p><div className="checkout-total"><span>До сплати</span><Money amountKopecks={total} size="lg" /><small>Рахунок готовий до підтвердження</small></div><div className="checkout-lines"><div><span>Страви</span><Money amountKopecks={food} /></div><div><span>Чайові</span><Money amountKopecks={tipAmount} /></div></div><div className="payment-method"><span className="card-brand">••••</span><p><b>Картка, Apple Pay або Google Pay</b><small>Спосіб оплати оберете на захищеній сторінці банку</small></p><span>›</span></div><div className="checkout-safe"><span>✓</span> Дані картки не передаються ресторану</div>{paymentError&&<p role="alert">{paymentError}</p>}<button className="primary full" onClick={confirmPayment}>Перейти до оплати <span>→</span></button></section>;
 
   return <section className={isSplit ? "screen split" : "screen"}>
     {isSplit ? <><button className="back" onClick={() => setMode("bill")} aria-label="Назад">←</button><p className="eyebrow">СТІЛ {bill.table.label} · {bill.venue.name}</p><h1>Що оплачуєте ви?</h1><p className="subtitle">Оберіть позиції зі спільного рахунку</p></> : <><div className="venue"><div className="venue-logo">{bill.venue.name[0]}</div><div><p className="eyebrow">ВАШ РАХУНОК</p><h1>{bill.venue.name}</h1></div><span className="table">Стіл {bill.table.label}</span></div><div className="guest-meta"><p className="live" role="status">Рахунок оновлено щойно</p><span>Захищено Rimvo</span></div></>}
