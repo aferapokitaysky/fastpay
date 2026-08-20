@@ -1,7 +1,9 @@
 import { auditEvents } from "../db/schema.js";
 import { db } from "../db/client.js";
 
-type DbOrTx = typeof db;
+/** Both Drizzle's database and transaction expose `insert`; keeping the
+ * boundary this small makes audit writes type-safe across Drizzle upgrades. */
+type DbOrTx = Pick<typeof db, "insert">;
 
 export interface AuditEventInput {
   organizationId: string;
