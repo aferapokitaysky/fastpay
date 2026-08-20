@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function Home() { return <main className="shell"><header className="top"><span className="brand"><b>F</b>fastpay</span></header><section className="screen landing"><p className="eyebrow">FASTPAY · DEMO</p><h1>Оплата за столом без очікування термінала</h1><p>Мобільний інтерфейс для гостей, офіціантів і власників ресторанів.</p><Link className="primary-link" href="/t/demo-table-02">Відкрити гостьовий рахунок</Link><Link className="secondary-link" href="/staff">Панель офіціанта</Link></section></main>; }
