@@ -12,3 +12,4 @@ export * from "./staffRealtime.js";
 export * from "./paymentIntents.js";
 export * from "./staffPaymentConfig.js";
 export * from "./staffAnalytics.js";
+export * from "./guestLoyalty.js";
