@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { PublicBillResponseSchema, type PublicBillResponse, type PublicOrderItem } from "@fastpay/contracts";
+import { PaymentIntentResponseSchema, PublicBillResponseSchema, type PaymentIntentResponse, type PublicBillResponse, type PublicOrderItem } from "@fastpay/contracts";
 import { Money } from "./Money";
+import { publicPaymentApi } from "../lib/public-payment";
 
 type Mode = "bill" | "split" | "checkout" | "processing" | "success";
 /** Чайові — або відсоток від суми страв (з налаштувань закладу), або власна сума в копійках. */
@@ -23,6 +24,10 @@ export function GuestBill({ bill: initialBill, token }: { bill: PublicBillRespon
   /** Знімок оплаченої суми: після виходу зі split-режиму `food` перераховується на весь рахунок. */
   const [paid, setPaid] = useState<{ foodKopecks: number; tipKopecks: number; at: Date } | null>(null);
   const [paymentError, setPaymentError] = useState("");
+  const [paymentIntent, setPaymentIntent] = useState<PaymentIntentResponse | null>(null);
+  const [checkoutKey, setCheckoutKey] = useState("");
+  const pendingPaymentIntentId = paymentIntent?.paymentIntentId;
+  const pendingPaymentIntentStatus = paymentIntent?.status;
   const items = useMemo(() => bill.order?.items ?? [], [bill.order?.items]);
   const payableIds = useMemo(() => items.filter(isPayable).map((item) => item.id), [items]);
   const [selected, setSelected] = useState<string[]>(() => payableIds.slice(0, 1));
@@ -46,6 +51,25 @@ export function GuestBill({ bill: initialBill, token }: { bill: PublicBillRespon
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [token]);
 
+  useEffect(() => { const timer = window.setTimeout(() => { try { const saved = PaymentIntentResponseSchema.parse(JSON.parse(sessionStorage.getItem(`rimvo.payment.${token}`) ?? "null")); setPaymentIntent(saved); setMode("processing"); } catch { /* No pending payment for this table in this browser. */ } }, 0); return () => window.clearTimeout(timer); }, [token]);
+
+  useEffect(() => {
+    if (!pendingPaymentIntentId || pendingPaymentIntentStatus === "succeeded") return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const next = await publicPaymentApi.getIntent(pendingPaymentIntentId);
+        if (cancelled) return;
+        setPaymentIntent(next);
+        if (next.status === "succeeded") { sessionStorage.removeItem(`rimvo.payment.${token}`); setPaid({ foodKopecks: next.amountFoodKopecks, tipKopecks: next.amountTipKopecks, at: new Date() }); setMode("success"); }
+        if (["failed", "expired", "cancelled", "review_required"].includes(next.status)) { sessionStorage.removeItem(`rimvo.payment.${token}`); setPaymentError(next.status === "review_required" ? "Банк передав суму, яка не збігається з рахунком. Зверніться до команди закладу." : "Платіж не підтверджено. Позиції знову доступні для оплати."); setMode("checkout"); }
+      } catch { /* Keep waiting: a temporary network error must not change payment state. */ }
+    };
+    void refresh();
+    const interval = window.setInterval(refresh, 3_000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [pendingPaymentIntentId, pendingPaymentIntentStatus, token]);
+
   const liveFood = useMemo(() => mode === "split"
     ? items.filter((item) => isPayable(item) && selected.includes(item.id)).reduce((sum, item) => sum + item.remainingKopecks, 0)
     : bill.order?.outstandingFoodKopecks ?? 0, [bill.order?.outstandingFoodKopecks, items, mode, selected]);
@@ -61,8 +85,8 @@ export function GuestBill({ bill: initialBill, token }: { bill: PublicBillRespon
     setTip({ kind: "custom", kopecks: Number.isFinite(kopecks) && kopecks > 0 ? kopecks : 0 });
   };
   const openCustomTip = () => { setCustomOpen(true); setTip({ kind: "custom", kopecks: 0 }); };
-  const goToCheckout = () => { setCheckoutFood(liveFood); setCheckoutFrom(isSplit ? "split" : "bill"); setMode("checkout"); };
-  const confirmPayment = () => { setPaymentError(""); if (token !== "demo-table-02") { setPaymentError("Оплата ще не підключена для цього закладу. Будь ласка, попросіть офіціанта про допомогу."); return; } const snapshot = { foodKopecks: food, tipKopecks: tipAmount, at: new Date() }; setMode("processing"); window.setTimeout(() => { setPaid(snapshot); setMode("success"); }, 900); };
+  const goToCheckout = () => { setPaymentError(""); setCheckoutKey(crypto.randomUUID()); setCheckoutFood(liveFood); setCheckoutFrom(isSplit ? "split" : "bill"); setMode("checkout"); };
+  const confirmPayment = async () => { setPaymentError(""); if (token === "demo-table-02") { const snapshot = { foodKopecks: food, tipKopecks: tipAmount, at: new Date() }; setMode("processing"); window.setTimeout(() => { setPaid(snapshot); setMode("success"); }, 900); return; } setMode("processing"); try { const next = await publicPaymentApi.createIntent(token, { itemIds: checkoutFrom === "split" ? selected : "all", tipKopecks: tipAmount, idempotencyKey: checkoutKey || crypto.randomUUID() }); setPaymentIntent(next); sessionStorage.setItem(`rimvo.payment.${token}`, JSON.stringify(next)); if (next.status === "succeeded") { setPaid({ foodKopecks: next.amountFoodKopecks, tipKopecks: next.amountTipKopecks, at: new Date() }); setMode("success"); return; } if (!next.checkoutUrl) throw new Error("Платіжний провайдер не повернув посилання для оплати"); window.location.assign(next.checkoutUrl); } catch (requestError) { setPaymentError(requestError instanceof Error ? requestError.message : "Не вдалося почати оплату"); setMode("checkout"); } };
 
   // «Ні» рендеримо завжди: сервер надсилає лише ненульові пресети (див. apps/api/src/routes/publicBill.ts),
   // а відмова від чайових обов'язкова (ТЗ §5.8) — це UI-рішення, а не серверні дані.

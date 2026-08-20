@@ -29,6 +29,8 @@
 | Метод и путь | Ответ |
 |---|---|
 | `GET /v1/public/tables/:token/bill` | `200` `PublicBillResponse` (см. пример ниже, `order: null` = нет активного заказа); `404 TABLE_NOT_FOUND` для неизвестного/отозванного токена |
+| `POST /v1/public/tables/:token/payment-intents` | `{ itemIds: "all" \| string[], tipKopecks, idempotencyKey }` → `201 PaymentIntentResponse`; сервер атомарно резервирует позиции, сам считает food amount и не доверяет сумме клиента. Тот же `idempotencyKey` безопасно возвращает существующий intent. |
+| `GET /v1/public/payment-intents/:id` | `200 PaymentIntentResponse`; используется только для polling после redirect. |
 
 ## Staff (аутентификация обязательна; `owner`/`manager` где указано, иначе — любая роль своего venue)
 
@@ -59,9 +61,14 @@
 
 `StaffOrder`: `{ id, tableId, status, version, items: StaffOrderItem[], totalFoodKopecks, outstandingFoodKopecks, currency, createdAt, updatedAt }` — считается на сервере из снапшотов позиций при каждом чтении/записи, клиентской сумме не доверяем. Полный `status`-enum: `draft | open | bill_requested | payment_pending | partially_paid | paid | closed` (публичный контракт не показывает `closed`).
 
-## Provider (эквайринг, следующий этап — B2)
+## Provider / B2 payments
 
-`POST /v1/webhooks/{provider}` ещё не реализован. PaymentIntent, чаевые как отдельная сущность и связанные payment-эндпоинты — это B2, не в этом контракте.
+`PaymentIntentResponse`: `{ paymentIntentId, status, checkoutUrl, amountFoodKopecks, amountTipKopecks, totalKopecks, currency, expiresAt }`. Допустимые статусы: `created | provider_pending | succeeded | failed | expired | cancelled | review_required`.
+
+- Гость передаёт только выбранные `itemIds` и чаевые в копейках; сервер фиксирует сумму, создаёт reservation с TTL и выдаёт `checkoutUrl`.
+- Frontend не считает платёж успешным после redirect: он poll-ит intent и показывает receipt исключительно на `succeeded`.
+- `POST /v1/webhooks/:provider` принимает только подписанный provider callback. Повторный `providerEventId` безопасен; несовпадение суммы переходит в `review_required`, а не оплачивает заказ.
+- Текущий `fake` provider — sandbox/test adapter. Реальный эквайер требует отдельного provider adapter, credentials и webhook configuration до production launch.
 
 ## Обязательный public bill response
 
