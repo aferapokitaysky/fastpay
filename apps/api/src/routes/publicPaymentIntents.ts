@@ -11,6 +11,9 @@ import { orders, paymentIntentItems, paymentIntents, tables } from "../db/schema
 import { NotFoundError, BadRequestError } from "../middleware/errorHandler.js";
 import { listPayableOrderItemIds, reserveOrderItems, RESERVATION_TTL_MS } from "../payments/reservation.js";
 import { getProvider } from "../payments/registry.js";
+import { getOrderVenueAndTable } from "../lib/orderState.js";
+import { insertRealtimeEvent, toStaffRealtimeEvent } from "../realtime/events.js";
+import { publishToVenue } from "../realtime/pubsub.js";
 
 // Single-currency MVP, matches routes/publicBill.ts.
 const CURRENCY = "UAH";
@@ -145,6 +148,26 @@ export async function publicPaymentIntentsRoutes(app: FastifyInstance): Promise<
         .where(eq(paymentIntents.id, paymentIntentId))
         .returning();
       if (!updated) throw new Error("Failed to update payment intent after invoice creation");
+
+      // Best-effort realtime notify — never block the guest's checkout
+      // response on this. Its own row (see realtime/events.ts) is the
+      // durable source of truth regardless of whether this publish happens.
+      const tableInfo = await getOrderVenueAndTable(activeOrder.id);
+      if (tableInfo) {
+        const row = await db.transaction((tx) =>
+          insertRealtimeEvent(tx, {
+            venueId: tableInfo.venueId,
+            type: "payment_started",
+            tableId: tableInfo.tableId,
+            tableLabel: tableInfo.tableLabel,
+            orderId: activeOrder.id,
+            amountKopecks: amountFoodKopecks,
+            tipKopecks: body.tipKopecks,
+            title: `Table ${tableInfo.tableLabel} started paying`,
+          }),
+        );
+        publishToVenue(row.venueId, toStaffRealtimeEvent(row));
+      }
 
       reply.status(201);
       return PaymentIntentResponseSchema.parse(toResponse(updated));

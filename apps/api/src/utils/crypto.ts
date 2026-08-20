@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto";
 import { env } from "../config/env.js";
 
 /**
@@ -48,4 +48,23 @@ export function decryptSecret(stored: string): string {
     decipher.final(),
   ]);
   return plaintext.toString("utf8");
+}
+
+/**
+ * One-way HMAC-SHA256 hash of a guest phone number, for guest_profiles
+ * (B3 loyalty opt-in) — deliberately NOT reversible like encryptSecret
+ * above: we only ever need to recognize a RETURNING phone, never read one
+ * back in plaintext. Pepper comes from GUEST_PHONE_HASH_PEPPER (see
+ * config/env.ts).
+ *
+ * Normalization is intentionally minimal (strip everything but digits) —
+ * no country-code inference, so "+380501234567" and "0501234567" hash
+ * differently even though a human would recognize them as the same
+ * number. A real implementation would canonicalize with a phone-parsing
+ * library (e.g. libphonenumber); out of scope here, don't oversell this
+ * as more correct than it is.
+ */
+export function hashPhone(phone: string): string {
+  const normalized = phone.replace(/\D/g, "");
+  return createHmac("sha256", env.GUEST_PHONE_HASH_PEPPER).update(normalized).digest("hex");
 }

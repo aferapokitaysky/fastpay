@@ -78,6 +78,9 @@ jobs:
           # CI-only throwaway key (B2: apps/api/src/utils/crypto.ts) — 32 bytes, base64.
           # Never reused for real credentials; regenerate freely if it ever needs rotating.
           PAYMENT_CREDENTIALS_ENCRYPTION_KEY: "5mc4e5MO4zcozfZJThTc2bApRYhZl0l/MK8e2codcJU="
+          # CI-only throwaway pepper (B3: guest phone hashing) — added alongside the
+          # env var itself this time, unlike PAYMENT_CREDENTIALS_ENCRYPTION_KEY in B2.
+          GUEST_PHONE_HASH_PEPPER: "ci-test-pepper-not-a-real-secret"
         run: npm test --if-present
       - name: Skipped (no apps/api yet)
         if: steps.has_api.outputs.exists == 'false'

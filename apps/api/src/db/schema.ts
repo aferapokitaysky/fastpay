@@ -160,6 +160,16 @@ export const orders = pgTable(
       .references(() => tables.id, { onDelete: "cascade" }),
     status: orderStatusEnum("status").notNull().default("draft"),
     version: integer("version").notNull().default(1),
+    // B3: who opened this order — nullable because it didn't exist before
+    // this migration (orders created earlier have no attribution) and
+    // because "system" opens aren't modeled. Set once at creation time
+    // (routes/staffOrders.ts) from the authenticated session; never
+    // reassigned. This is what makes per-staff analytics
+    // (routes/staffAnalytics.ts) possible at all — there was no way to
+    // attribute an order to a staff member before this column existed.
+    openedByStaffId: uuid("opened_by_staff_id").references((): AnyPgColumn => staff.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -168,6 +178,7 @@ export const orders = pgTable(
   },
   (table) => ({
     tableIdIdx: index("orders_table_id_idx").on(table.tableId),
+    openedByStaffIdIdx: index("orders_opened_by_staff_id_idx").on(table.openedByStaffId),
     // Enforces "one non-closed order per table" at the DB level. The
     // application also checks-then-inserts inside a transaction for a clean
     // error message, but this partial unique index is what actually
@@ -394,5 +405,94 @@ export const auditEvents = pgTable(
   },
   (table) => ({
     organizationIdIdx: index("audit_events_organization_id_idx").on(table.organizationId),
+  }),
+);
+
+/**
+ * B3 realtime outbox — see apps/api/src/realtime/*. Written transactionally
+ * alongside the state change it describes (order request-bill, payment
+ * started/succeeded/failed, order item mutations), matching the payment
+ * domain's idempotent-side-effect discipline. `status` is durable,
+ * team-shared read-state (not per-browser-tab): `pending` -> `seen` ->
+ * `resolved`/`archived`, mutated by the client commands defined in
+ * packages/contracts/src/staffRealtime.ts (`StaffRealtimeCommandSchema`).
+ * A `pending` row survives regardless of whether any staff device is
+ * currently connected — a reconnecting WebSocket client is caught up by
+ * querying rows here, which is what makes this durable without a separate
+ * delivery-retry/DLQ table (see realtime/pubsub.ts doc comment for the
+ * full reasoning).
+ */
+export const realtimeEventTypeEnum = pgEnum("realtime_event_type", [
+  "bill_requested",
+  "payment_started",
+  "payment_succeeded",
+  "payment_failed",
+  "order_updated",
+  "table_attention",
+]);
+
+export const realtimeEventStatusEnum = pgEnum("realtime_event_status", [
+  "pending",
+  "seen",
+  "resolved",
+  "archived",
+]);
+
+export const realtimeEvents = pgTable(
+  "realtime_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    venueId: uuid("venue_id")
+      .notNull()
+      .references(() => venues.id, { onDelete: "cascade" }),
+    type: realtimeEventTypeEnum("type").notNull(),
+    tableId: uuid("table_id")
+      .notNull()
+      .references(() => tables.id, { onDelete: "cascade" }),
+    orderId: uuid("order_id").references((): AnyPgColumn => orders.id, { onDelete: "set null" }),
+    // Holds the rest of the StaffRealtimeEvent contract fields (amountKopecks,
+    // tipKopecks, title, body, action) exactly shaped so a row round-trips
+    // straight into a response — see realtime/events.ts.
+    payload: jsonb("payload").notNull(),
+    status: realtimeEventStatusEnum("status").notNull().default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => ({
+    venueIdIdx: index("realtime_events_venue_id_idx").on(table.venueId),
+    // Catch-up query on WebSocket (re)connect: venue + not-yet-resolved, newest first.
+    venueStatusIdx: index("realtime_events_venue_status_idx").on(table.venueId, table.status),
+  }),
+);
+
+/**
+ * B3 guest loyalty — voluntary, phone-only opt-in offered on the post-payment
+ * "thank you" screen (docs/PRODUCT_SPEC_MVP.md section 10). `phoneHash` is
+ * HMAC-SHA256(phone, GUEST_PHONE_HASH_PEPPER) — one-way, not reversible
+ * encryption like venue_payment_configs: we only ever need to recognize a
+ * RETURNING phone, never display the plaintext back. Unique per organization
+ * (a guest's loyalty history is scoped to the restaurant group, not global).
+ */
+export const guestProfiles = pgTable(
+  "guest_profiles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    phoneHash: text("phone_hash").notNull(),
+    visitCount: integer("visit_count").notNull().default(1),
+    totalSpentKopecks: integer("total_spent_kopecks").notNull().default(0),
+    firstVisitAt: timestamp("first_visit_at", { withTimezone: true }).notNull().defaultNow(),
+    lastVisitAt: timestamp("last_visit_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    orgPhoneHashIdx: uniqueIndex("guest_profiles_org_phone_hash_idx").on(
+      table.organizationId,
+      table.phoneHash,
+    ),
   }),
 );

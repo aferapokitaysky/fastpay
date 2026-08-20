@@ -16,7 +16,9 @@ import { UnauthorizedError, NotFoundError, BadRequestError } from "../middleware
 import { isKnownProvider, getProvider } from "../payments/registry.js";
 import { decryptSecret } from "../utils/crypto.js";
 import { releaseReservation } from "../payments/reservation.js";
-import { recomputeOrderPaymentStatus } from "../lib/orderState.js";
+import { getOrderVenueAndTable, recomputeOrderPaymentStatus } from "../lib/orderState.js";
+import { insertRealtimeEvent, toStaffRealtimeEvent } from "../realtime/events.js";
+import { publishToVenue } from "../realtime/pubsub.js";
 
 function isUniqueViolation(error: unknown): boolean {
   return (
@@ -138,6 +140,8 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
       throw error;
     }
 
+    const tableInfo = await getOrderVenueAndTable(intent.orderId);
+
     if (event.status === "succeeded") {
       const expectedTotal = intent.amountFoodKopecks + intent.amountTipKopecks;
       if (event.amountKopecks !== expectedTotal) {
@@ -147,7 +151,7 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
         // table forever even if nobody looks at it immediately.
         await db.update(paymentIntents).set({ status: "review_required" }).where(eq(paymentIntents.id, intent.id));
       } else {
-        await db.transaction(async (tx) => {
+        const realtimeRow = await db.transaction(async (tx) => {
           const coveredItems = await tx
             .select({ orderItemId: paymentIntentItems.orderItemId })
             .from(paymentIntentItems)
@@ -163,16 +167,47 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
 
           await tx.update(paymentIntents).set({ status: "succeeded" }).where(eq(paymentIntents.id, intent.id));
           await recomputeOrderPaymentStatus(tx, intent.orderId);
+
+          if (!tableInfo) return null;
+          return insertRealtimeEvent(tx, {
+            venueId: tableInfo.venueId,
+            type: "payment_succeeded",
+            tableId: tableInfo.tableId,
+            tableLabel: tableInfo.tableLabel,
+            orderId: intent.orderId,
+            amountKopecks: intent.amountFoodKopecks,
+            tipKopecks: intent.amountTipKopecks,
+            title: `Table ${tableInfo.tableLabel} paid`,
+          });
         });
+
+        if (realtimeRow) {
+          publishToVenue(realtimeRow.venueId, toStaffRealtimeEvent(realtimeRow));
+        }
       }
     } else {
       // failed | expired | cancelled — release the reservation immediately
       // so the items become payable by someone else without waiting out
       // the TTL.
-      await db.transaction(async (tx) => {
+      const realtimeRow = await db.transaction(async (tx) => {
         await tx.update(paymentIntents).set({ status: event.status }).where(eq(paymentIntents.id, intent.id));
         await releaseReservation(tx, intent.id);
+
+        if (!tableInfo) return null;
+        return insertRealtimeEvent(tx, {
+          venueId: tableInfo.venueId,
+          type: "payment_failed",
+          tableId: tableInfo.tableId,
+          tableLabel: tableInfo.tableLabel,
+          orderId: intent.orderId,
+          title: `Table ${tableInfo.tableLabel} payment ${event.status}`,
+          action: { label: "Retry", kind: "retry" },
+        });
       });
+
+      if (realtimeRow) {
+        publishToVenue(realtimeRow.venueId, toStaffRealtimeEvent(realtimeRow));
+      }
     }
 
     await db

@@ -22,6 +22,13 @@
       "when": 1787239706871,
       "tag": "0002_payment_domain",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787241539224,
+      "tag": "0003_misty_bastion",
+      "breakpoints": true
     }
   ]
 }

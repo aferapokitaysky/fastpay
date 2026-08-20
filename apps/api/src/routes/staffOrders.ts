@@ -14,8 +14,10 @@ import { db } from "../db/client.js";
 import { menuItems, orderItems, orders } from "../db/schema.js";
 import { requireAuth } from "../middleware/auth.js";
 import { assertVenueAccess, getOrgOrderOrThrow, getOrgTableOrThrow } from "../lib/scoping.js";
-import { loadStaffOrder } from "../lib/orderState.js";
+import { getOrderVenueAndTable, loadStaffOrder } from "../lib/orderState.js";
 import { recordAuditEvent } from "../lib/audit.js";
+import { insertRealtimeEvent, toStaffRealtimeEvent } from "../realtime/events.js";
+import { publishToVenue } from "../realtime/pubsub.js";
 import {
   BadRequestError,
   ConflictError,
@@ -54,7 +56,7 @@ export async function staffOrdersRoutes(app: FastifyInstance): Promise<void> {
     "/v1/staff/tables/:id/orders",
     { preHandler: [requireAuth] },
     async (request, reply) => {
-      const { organizationId } = request.staff!;
+      const { organizationId, staffId } = request.staff!;
       const table = await getOrgTableOrThrow(request.params.id, organizationId);
       assertVenueAccess(request.staff!, table.venueId);
 
@@ -72,7 +74,7 @@ export async function staffOrdersRoutes(app: FastifyInstance): Promise<void> {
 
           const [inserted] = await tx
             .insert(orders)
-            .values({ tableId: table.id, status: "open", version: 1 })
+            .values({ tableId: table.id, status: "open", version: 1, openedByStaffId: staffId })
             .returning({ id: orders.id });
           if (!inserted) throw new Error("Failed to create order");
           return inserted.id;
@@ -109,7 +111,7 @@ export async function staffOrdersRoutes(app: FastifyInstance): Promise<void> {
         throw await versionConflict(existing.id);
       }
 
-      await db.transaction(async (tx) => {
+      const realtimeRow = await db.transaction(async (tx) => {
         for (const op of body.operations) {
           if (op.type === "add") {
             const [menuItem] = await tx
@@ -164,7 +166,23 @@ export async function staffOrdersRoutes(app: FastifyInstance): Promise<void> {
           .update(orders)
           .set({ version: existing.version + 1 })
           .where(eq(orders.id, existing.id));
+
+        const tableInfo = await getOrderVenueAndTable(existing.id);
+        if (!tableInfo) return null;
+        return insertRealtimeEvent(tx, {
+          venueId: tableInfo.venueId,
+          type: "order_updated",
+          tableId: tableInfo.tableId,
+          tableLabel: tableInfo.tableLabel,
+          orderId: existing.id,
+          title: `Table ${tableInfo.tableLabel} updated`,
+          body: "Order items changed",
+        });
       });
+
+      if (realtimeRow) {
+        publishToVenue(realtimeRow.venueId, toStaffRealtimeEvent(realtimeRow));
+      }
 
       return UpdateOrderResponseSchema.parse(await loadStaffOrder(existing.id));
     },
@@ -190,10 +208,28 @@ export async function staffOrdersRoutes(app: FastifyInstance): Promise<void> {
         throw await versionConflict(existing.id);
       }
 
-      await db
-        .update(orders)
-        .set({ status: "bill_requested", version: existing.version + 1 })
-        .where(eq(orders.id, existing.id));
+      const realtimeRow = await db.transaction(async (tx) => {
+        await tx
+          .update(orders)
+          .set({ status: "bill_requested", version: existing.version + 1 })
+          .where(eq(orders.id, existing.id));
+
+        const tableInfo = await getOrderVenueAndTable(existing.id);
+        if (!tableInfo) return null;
+        return insertRealtimeEvent(tx, {
+          venueId: tableInfo.venueId,
+          type: "bill_requested",
+          tableId: tableInfo.tableId,
+          tableLabel: tableInfo.tableLabel,
+          orderId: existing.id,
+          title: `Table ${tableInfo.tableLabel} requested the bill`,
+          action: { label: "Open table", kind: "open_table" },
+        });
+      });
+
+      if (realtimeRow) {
+        publishToVenue(realtimeRow.venueId, toStaffRealtimeEvent(realtimeRow));
+      }
 
       return RequestBillResponseSchema.parse(await loadStaffOrder(existing.id));
     },
