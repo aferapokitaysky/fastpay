@@ -1,4 +1,4 @@
-import { ErrorEnvelopeSchema, PinLoginRequestSchema, StaffOrderSchema, StaffSessionResponseSchema, type CloseOrderRequest, type OrderItemOperation, type StaffSessionResponse } from "@fastpay/contracts";
+import { ErrorEnvelopeSchema, PinLoginRequestSchema, StaffFloorSnapshotResponseSchema, StaffOrderSchema, StaffSessionResponseSchema, type CloseOrderRequest, type OrderItemOperation, type StaffSessionResponse } from "@fastpay/contracts";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -15,6 +15,7 @@ async function request<T>(path: string, init: RequestInit, schema: { parse: (dat
 
 export const staffApi = {
   loginWithPin: (venueId: string, pin: string) => request("/v1/staff/session/pin", { method: "POST", body: JSON.stringify(PinLoginRequestSchema.parse({ venueId, pin })) }, StaffSessionResponseSchema),
+  getFloorSnapshot: (token: string) => request("/v1/staff/floor", { method: "GET" }, StaffFloorSnapshotResponseSchema, token),
   openOrder: (tableId: string, token: string) => request("/v1/staff/tables/" + tableId + "/orders", { method: "POST", headers: { "idempotency-key": crypto.randomUUID() } }, StaffOrderSchema, token),
   updateOrder: (orderId: string, version: number, operations: OrderItemOperation[], token: string) => request("/v1/staff/orders/" + orderId, { method: "PATCH", body: JSON.stringify({ version, operations }), headers: { "idempotency-key": crypto.randomUUID() } }, StaffOrderSchema, token),
   requestBill: (orderId: string, version: number, token: string) => request("/v1/staff/orders/" + orderId + "/request-bill", { method: "POST", body: JSON.stringify({ version }), headers: { "idempotency-key": crypto.randomUUID() } }, StaffOrderSchema, token),
