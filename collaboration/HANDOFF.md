@@ -1,5 +1,13 @@
 # Handoff — текущая рабочая база
 
+## 2026-08-20 — Codex + Claude (B2 payment integration)
+
+- Added: B2 payment domain merged from Claude's `ce899fc`: server-owned PaymentIntent, item reservation with TTL, provider checkout URL, signed idempotent webhook consumer and public status endpoint.
+- Added: guest checkout creates a server intent with a stable idempotency key, saves only the non-secret intent response for provider return, redirects to `checkoutUrl`, then polls until a webhook-confirmed terminal state. The UI never marks an external payment as successful on redirect alone.
+- Verify: contracts build, API lint/build, web lint/typecheck/build; `npm test -w apps/api -- test/contracts.test.ts` → 13/13 passed.
+- Local environment note: local Docker Postgres rejected the password in `apps/api/.env.example`, so B2 DB-backed integration tests/migrations were not claimed as run in this worktree. CI has an isolated configured Postgres/Redis service.
+- Release gate: `fake` provider is test-only. A signed, reconciled real acquirer adapter and production credentials/webhook configuration remain mandatory before accepting real money.
+
 ## 2026-08-20 — Codex (A2 live data and public-bill hardening)
 
 - Added: staff PWA consumes live B1 floor snapshots, order details and venue menu; all live add/remove/request-bill actions use the server `version` and an idempotency key. Floor state now derives from active-order status; realtime events refresh the floor snapshot.
