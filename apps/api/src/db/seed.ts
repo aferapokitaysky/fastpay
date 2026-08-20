@@ -1,17 +1,31 @@
 import "../config/env.js";
-import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
 import { db, pool } from "./client.js";
-import { floors, menuItems, orderItems, orders, organizations, tables, venues } from "./schema.js";
+import {
+  floors,
+  menuItems,
+  orderItems,
+  orders,
+  organizations,
+  staff,
+  tables,
+  venues,
+} from "./schema.js";
+import { generateOpaqueToken } from "../utils/opaqueToken.js";
+import { hashPassword, hashPin } from "../utils/password.js";
 
 const DEMO_ORG_NAME = "Goodman Demo";
 const DEMO_VENUE_NAME = "Goodman";
 const DEMO_FLOOR_NAME = "Main Hall";
 const DEMO_TABLE_LABEL = "02";
+const DEMO_OWNER_EMAIL = "owner@goodman-demo.fastpay.ua";
+const DEMO_OWNER_PASSWORD = "demo-owner-pass-123";
+const DEMO_WAITER_NAME = "Demo Waiter";
+const DEMO_WAITER_PIN = "1234";
 
 function generateQrToken(): string {
-  return randomBytes(24).toString("base64url");
+  return generateOpaqueToken(24);
 }
 
 export interface SeedResult {
@@ -20,6 +34,11 @@ export interface SeedResult {
   tableId: string;
   qrToken: string;
   orderId: string;
+  ownerStaffId: string;
+  ownerEmail: string;
+  ownerPassword: string;
+  waiterStaffId: string;
+  waiterPin: string;
 }
 
 /**
@@ -114,14 +133,52 @@ export async function seedDemoData(): Promise<SeedResult> {
     },
   ]);
 
+  const [ownerPasswordHash, waiterPinHash] = await Promise.all([
+    hashPassword(DEMO_OWNER_PASSWORD),
+    hashPin(DEMO_WAITER_PIN),
+  ]);
+
+  const [owner] = await db
+    .insert(staff)
+    .values({
+      organizationId: org.id,
+      venueId: null,
+      name: "Demo Owner",
+      role: "owner",
+      email: DEMO_OWNER_EMAIL,
+      passwordHash: ownerPasswordHash,
+    })
+    .returning({ id: staff.id });
+  if (!owner) throw new Error("Failed to seed owner");
+
+  const [waiter] = await db
+    .insert(staff)
+    .values({
+      organizationId: org.id,
+      venueId: venue.id,
+      name: DEMO_WAITER_NAME,
+      role: "waiter",
+      pinHash: waiterPinHash,
+    })
+    .returning({ id: staff.id });
+  if (!waiter) throw new Error("Failed to seed waiter");
+
   // eslint-disable-next-line no-console
   console.log("Seeded demo data.");
   // eslint-disable-next-line no-console
-  console.log(`  Table label: ${DEMO_TABLE_LABEL}`);
+  console.log(`  Table label:    ${DEMO_TABLE_LABEL}`);
   // eslint-disable-next-line no-console
-  console.log(`  QR token:    ${qrToken}`);
+  console.log(`  QR token:       ${qrToken}`);
   // eslint-disable-next-line no-console
-  console.log(`  Bill URL:    /v1/public/tables/${qrToken}/bill`);
+  console.log(`  Bill URL:       /v1/public/tables/${qrToken}/bill`);
+  // eslint-disable-next-line no-console
+  console.log(`  Owner email:    ${DEMO_OWNER_EMAIL}`);
+  // eslint-disable-next-line no-console
+  console.log(`  Owner password: ${DEMO_OWNER_PASSWORD}`);
+  // eslint-disable-next-line no-console
+  console.log(`  Venue id:       ${venue.id}`);
+  // eslint-disable-next-line no-console
+  console.log(`  Waiter PIN:     ${DEMO_WAITER_PIN} (login with venueId above)`);
 
   return {
     organizationId: org.id,
@@ -129,6 +186,11 @@ export async function seedDemoData(): Promise<SeedResult> {
     tableId: table.id,
     qrToken,
     orderId: order.id,
+    ownerStaffId: owner.id,
+    ownerEmail: DEMO_OWNER_EMAIL,
+    ownerPassword: DEMO_OWNER_PASSWORD,
+    waiterStaffId: waiter.id,
+    waiterPin: DEMO_WAITER_PIN,
   };
 }
 
