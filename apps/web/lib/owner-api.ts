@@ -1,8 +1,10 @@
 import {
   CreateTableRequestSchema,
+  CreateMenuItemRequestSchema,
   CreateFloorRequestSchema,
   ErrorEnvelopeSchema,
   ListFloorsResponseSchema,
+  ListMenuItemsResponseSchema,
   ListTablesResponseSchema,
   ListVenuesResponseSchema,
   OwnerRegisterRequestSchema,
@@ -11,13 +13,17 @@ import {
   PaymentConfigResponseSchema,
   RotateQrResponseSchema,
   SetPaymentConfigRequestSchema,
+  StaffMenuItemSchema,
   StaffFloorSchema,
   StaffSessionResponseSchema,
   StaffTableSchema,
+  UpdateMenuItemRequestSchema,
   type OwnerRegisterRequest,
+  type CreateMenuItemRequest,
   type PasswordLoginRequest,
   type PaymentConfigResponse,
   type SetPaymentConfigRequest,
+  type UpdateMenuItemRequest,
   type StaffSessionResponse,
 } from "@fastpay/contracts";
 import { StaffApiError } from "./staff-api";
@@ -59,6 +65,9 @@ export const ownerApi = {
   rotateQr: (tableId: string, token: string) => request(`/v1/staff/tables/${tableId}/rotate-qr`, { method: "POST", headers: { "idempotency-key": crypto.randomUUID() } }, RotateQrResponseSchema, token),
   getPaymentConfig: (venueId: string, token: string) => request(`/v1/staff/venues/${venueId}/payment-config`, { method: "GET" }, PaymentConfigResponseSchema, token),
   setPaymentConfig: (venueId: string, body: SetPaymentConfigRequest, token: string) => request(`/v1/staff/venues/${venueId}/payment-config`, { method: "POST", body: JSON.stringify(SetPaymentConfigRequestSchema.parse(body)), headers: { "idempotency-key": crypto.randomUUID() } }, PaymentConfigResponseSchema, token),
+  listMenuItems: (venueId: string, token: string) => request(`/v1/staff/venues/${venueId}/menu-items`, { method: "GET" }, ListMenuItemsResponseSchema, token),
+  createMenuItem: (venueId: string, body: CreateMenuItemRequest, token: string) => request(`/v1/staff/venues/${venueId}/menu-items`, { method: "POST", body: JSON.stringify(CreateMenuItemRequestSchema.parse(body)), headers: { "idempotency-key": crypto.randomUUID() } }, StaffMenuItemSchema, token),
+  updateMenuItem: (menuItemId: string, body: UpdateMenuItemRequest, token: string) => request(`/v1/staff/menu-items/${menuItemId}`, { method: "PATCH", body: JSON.stringify(UpdateMenuItemRequestSchema.parse(body)), headers: { "idempotency-key": crypto.randomUUID() } }, StaffMenuItemSchema, token),
   logout: (token: string) => request("/v1/staff/session/logout", { method: "POST" }, EmptyResponseSchema, token),
 };
 
