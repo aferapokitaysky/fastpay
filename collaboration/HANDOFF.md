@@ -1,5 +1,23 @@
 # Handoff — текущая рабочая база
 
+## 2026-08-20 — Claude (staff realtime contract)
+
+- Added: `packages/contracts/src/staffRealtime.ts` — `StaffRealtimeEvent`/`StaffRealtimeIncomingMessage`/`StaffRealtimeCommand`, формализует поле в поле клиентский адаптер, который Codex уже написал в `apps/web/lib/staff-realtime.ts` (см. `collaboration/CLAUDE_DESIGN_PROMPT.md` и COM-006). 5 тестов в `test/contracts.test.ts`.
+- В ответ на дизайн-бриф Codex сделал НЕ полную дизайн-переработку, а короткий аудит: staff-экран уже реализован компетентно по большинству пунктов брифа (breakpoints, PIN, зал/заказ/уведомления, кастомные иконки) — писать поверх ещё один прескриптивный документ означало бы дублировать уже сделанную работу. Единственный уникально бэкендовый кусок брифа — realtime-контракт — сделан.
+- Verify: `npm run build/lint -w packages/contracts` — чисто; `npm test -w apps/api` — 56/56 (было 51, +5 новых).
+- Next: B3 (настоящий WebSocket-сервер под этот контракт) — после B2 (платёжный адаптер). Claude переходит к B2.
+
+## 2026-08-20 — Claude (B1 done)
+
+- Added: полный B1 (`apps/api`) — auth (`POST /v1/owner/register`, `.../staff/session/password`, `.../pin`, `.../logout`; Redis-сессии, argon2id, rate-limit 5/15мин), RBAC + tenant-изоляция (чужой tenant → 404, недостающая роль → 403), CRUD venues/floors/tables/menu-items/employees, ротация QR с немедленной инвалидацией, полный жизненный цикл заказа (открытие с защитой от гонки на уровне БД, `PATCH` с `version`/`409 ORDER_VERSION_CONFLICT`, `request-bill`, `close` с audit log при остатке). `docs/api/FRONTEND_BACKEND_CONTRACT.md` переписан с реальными staff/owner эндпоинтами вместо "примеров" — см. COM-005.
+- Added: 51 vitest-тест (`apps/api/test/{staffAuth,tenantIsolation,domainCrud,orderLifecycle}.test.ts`) — реальный Fastify app + Postgres + Redis, без моков, включая настоящую гонку (8 параллельных POST на один стол) и проверку audit-записей прямым запросом к БД.
+- Found and fixed two real bugs, не связанных с самим B1-кодом:
+  1. При слиянии с `main` (см. запись ниже) `eslint-config-next` в `apps/web` тянет `zod@4` в корень монорепо и вытесняет общий `zod@^3.23.8`, из-за чего `apps/api` и `packages/contracts` получали каждый свою изолированную копию — `instanceof ZodError` в `errorHandler.ts` не срабатывал между ними, и валидационные ошибки схем из `packages/contracts` тихо превращались в `500` вместо `400`. Поймано тестами (не удачей), пофикшено явным `zod` в корневом `package.json`.
+  2. Мои же тесты были хрупкими: захардкоженные email/rate-limit ключи копились между локальными прогонами `npm test` против одной и той же Postgres/Redis (CI поднимает свежие контейнеры на каждый запуск, локально — нет). Добавлен `uniqueEmail()` в `test/helpers.ts`, прогнал сьют дважды подряд без сброса БД — 51/51 оба раза.
+- Verify: `npm run lint/build -w apps/api` — чисто; `npm test -w apps/api` — 51/51, дважды подряд; после чистого `rm -rf **/node_modules && npm install` — единая копия `zod@3.25.76` в корне, полный монорепо-билд (`web`+`api`+`contracts`) и полный монорепо-линт — чисто.
+- Deferred (B2/B3, не забыто): PaymentIntent/эквайринг, чаевые как отдельная сущность, realtime/outbox, loyalty.
+- Next: Codex может строить staff PWA (A2) и owner dashboard (A3) на реальном контракте из `docs/api/FRONTEND_BACKEND_CONTRACT.md` — см. COM-005. Claude переходит к B2 (платёжный адаптер).
+
 ## 2026-08-20 — Claude (merge web branch into main, reconcile ADR-002)
 
 - Смержены PR #1–#3 в `main` (docs, backend B0, конкурентный анализ/GTM/дизайн-система) — `main` был пуст, вся работа висела ветками поверх пустого init-коммита.
